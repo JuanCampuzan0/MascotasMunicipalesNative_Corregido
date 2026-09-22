@@ -1,0 +1,9 @@
+1. Descomprime el archivo ZIP.
+2. Abre Android Studio.
+3. Selecciona File > Open.
+4. Abre la carpeta MascotasMunicipalesNative_Corregido, donde están settings.gradle.kts y gradlew.bat.
+5. Espera a que termine Gradle Sync.
+6. Presiona el botón verde Run.
+
+Importante: las pantallas están creadas por código en MainActivity.kt.
+No aparecen en el editor visual XML; se ven al ejecutar la aplicación.

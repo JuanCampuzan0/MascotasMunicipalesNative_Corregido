@@ -11,8 +11,8 @@ android {
         applicationId = "com.mascotasmunicipales"
         minSdk = 24
         targetSdk = 33
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     compileOptions {
@@ -29,6 +29,8 @@ android {
     }
 }
 dependencies {
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-livedata-core:2.6.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))

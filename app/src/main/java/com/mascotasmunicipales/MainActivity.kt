@@ -13,16 +13,19 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.activity.OnBackPressedCallback
+import androidx.core.widget.doAfterTextChanged
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import java.text.DateFormat
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
-    private val repo = MunicipalRepository()
+    private lateinit var model: AppViewModel
+    private val repo get() = model.repo
     private val teal get() = when {
         highContrast -> Color.BLACK
         colorblindPalette -> Color.rgb(0, 82, 155)
@@ -42,20 +45,86 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nav: LinearLayout
     private val listeners = mutableListOf<ListenerRegistration>()
     private var screenGeneration = 0
-    private var tab = 0
-    private var previousTab = 0
+    private var tab: Int
+        get() = model.tab
+        set(value) { model.tab = value }
     private var syncMessage = ""
-    private val authListener = FirebaseAuth.AuthStateListener { showApp() }
+    private var updateDraftUi: (() -> Unit)? = null
+    private var updateAuthUi: ((SessionState) -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         largeText = accessibilityPreferences.getBoolean("large_text", false)
         highContrast = accessibilityPreferences.getBoolean("high_contrast", false)
         colorblindPalette = accessibilityPreferences.getBoolean("colorblind_palette", false)
-        repo.auth.addAuthStateListener(authListener)
+        accessibilityOpen = savedInstanceState?.getBoolean("accessibilityOpen") ?: false
+        accessibilityScrollY = savedInstanceState?.getInt("accessibilityScrollY") ?: 0
+        model = ViewModelProvider(this)[AppViewModel::class.java]
+        model.session.observe(this) { session ->
+            val authUi = updateAuthUi
+            if (session.phase in listOf("signedOut", "authenticating") && authUi != null) authUi(session)
+            else showApp()
+        }
+        model.draftsChanged.observe(this) { updateDraftUi?.invoke() }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (accessibilityOpen) {
+                    accessibilityOpen = false
+                    if (model.ready) profileMenu() else authScreen()
+                    return
+                }
+                if (!model.ready || model.screen == "home") finish()
+                else renderRoute(when {
+                    model.screen == "profile" -> model.previousScreen
+                    model.screen == "newPet" || model.screen.startsWith("pet:") -> "pets"
+                    model.screen == "newReport" || model.screen.startsWith("report:") -> "reports"
+                    else -> "home"
+                })
+            }
+        })
     }
-    override fun onDestroy() {
-        clearListeners(); repo.auth.removeAuthStateListener(authListener); super.onDestroy()
+    override fun onPause() { model.flush(); super.onPause() }
+    override fun onSaveInstanceState(outState: Bundle) {
+        model.flush()
+        outState.putBoolean("accessibilityOpen", accessibilityOpen)
+        outState.putInt("accessibilityScrollY", (content.getChildAt(0) as? ScrollView)?.scrollY ?: 0)
+        super.onSaveInstanceState(outState)
+    }
+    override fun onDestroy() { clearListeners(); super.onDestroy() }
+    private fun remember(route: String, selectedTab: Int = tab) {
+        accessibilityOpen = route == "accessibility"
+        tab = selectedTab; model.navigate(route)
+        updateNavigation()
+    }
+    private fun updateNavigation() {
+        if (!::nav.isInitialized) return
+        (0 until nav.childCount).forEach {
+            (nav.getChildAt(it) as TextView).apply {
+                val selected = model.ready && it == tab && !accessibilityOpen
+                setTextColor(if (selected && highContrast) Color.WHITE else if (selected) teal else gray)
+                typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                background = if (selected) GradientDrawable().apply {
+                    setColor(if (highContrast) Color.BLACK else Color.rgb(224, 240, 247))
+                    cornerRadius = dp(8).toFloat()
+                } else null
+                contentDescription = if (selected) "$text, pestaña seleccionada" else "$text, abrir pestaña"
+            }
+        }
+    }
+    private fun renderRoute(route: String) {
+        if (!model.ready) return
+        when {
+            route == "accessibility" -> accessibilityScreen()
+            route == "newPet" -> newPet()
+            route == "newReport" -> newReport()
+            route.startsWith("pet:") -> petDetail(route.removePrefix("pet:"))
+            route.startsWith("report:") -> reportDetail(route.removePrefix("report:"))
+            route == "pets" -> pets()
+            route == "reports" -> reports()
+            route == "territory" -> territory()
+            route == "profile" -> profileMenu()
+            else -> home()
+        }
     }
     private fun clearListeners() { listeners.forEach { it.remove() }; listeners.clear() }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
@@ -115,23 +184,22 @@ class MainActivity : AppCompatActivity() {
             addView(heading(title, 21f, Color.WHITE))
             if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE))
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        if (repo.uid != null) {
-            val inProfile = tab == 4
+        if (model.ready) {
+            val inProfile = model.screen in listOf("profile", "accessibility")
             addView(tv(if (inProfile) "Volver" else "Perfil", 12f, true, teal).apply {
                 gravity = Gravity.CENTER
                 minHeight = dp(56); minWidth = dp(64)
                 contentDescription = if (accessibilityOpen) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
                 background = shape()
                 setOnClickListener {
-                    if (accessibilityOpen) accessibilityOpen = false
-                    else if (inProfile) tab = previousTab
-                    else { previousTab = tab; tab = 4 }
-                    renderTab()
+                    if (accessibilityOpen) profileMenu()
+                    else if (inProfile) renderRoute(model.previousScreen)
+                    else { model.previousScreen = model.screen; profileMenu() }
                 }
             }, LinearLayout.LayoutParams(-2, -2))
         }
     }
-    private fun show(v: View) { screenGeneration++; clearListeners(); content.removeAllViews(); content.addView(v) }
+    private fun show(v: View) { screenGeneration++; clearListeners(); updateDraftUi = null; updateAuthUi = null; content.removeAllViews(); content.addView(v) }
     @Suppress("DEPRECATION")
     private fun applySystemBars() {
         window.statusBarColor = teal
@@ -152,7 +220,6 @@ class MainActivity : AppCompatActivity() {
     }
     private fun showApp() {
         clearListeners()
-        if (tab != 4) accessibilityOpen = false
         applySystemBars()
         val r = root(); content = FrameLayout(this)
         r.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -166,47 +233,79 @@ class MainActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         r.addView(nav); setContentView(r)
-        if (repo.uid == null) authScreen() else renderTab()
+        when (model.session.value?.phase) {
+            "ready" -> renderRoute(model.screen)
+            "signedOut", "authenticating" -> if (accessibilityOpen) accessibilityScreen() else authScreen()
+            else -> sessionScreen()
+        }
     }
     private fun renderTab() {
-        if (repo.uid == null) return authScreen()
-        (0 until nav.childCount).forEach {
-            (nav.getChildAt(it) as TextView).apply {
-                val selected = it == tab && !accessibilityOpen
-                setTextColor(if (selected && highContrast) Color.WHITE else if (selected) teal else gray)
-                typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-                background = if (selected) GradientDrawable().apply {
-                    setColor(if (highContrast) Color.BLACK else Color.rgb(224, 240, 247))
-                    cornerRadius = dp(8).toFloat()
-                } else null
-                contentDescription = if (selected) "$text, pestaña seleccionada" else "$text, abrir pestaña"
-            }
-        }
-        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> if (accessibilityOpen) accessibilityScreen() else profileMenu() }
+        if (!model.ready) return
+        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> profileMenu() }
+    }
+    private fun sessionScreen() {
+        val session = model.session.value ?: SessionState("starting")
+        val c = root(); c.addView(header("Tu cuenta", "Mascotas Municipales"))
+        c.addView(tv(session.message.ifBlank { "Preparando sesión…" }))
+        if (session.phase == "profileError") c.addView(button("REINTENTAR PERFIL") { model.prepareProfile() })
+        if (repo.uid != null) c.addView(button("CERRAR SESIÓN") { model.logout() })
+        show(scroll(c))
     }
     private fun authScreen() {
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Registro e ingreso · Zipaquirá"))
-        val email = field("Correo electrónico"); c.addView(email)
-        val password = field("Contraseña (mínimo 6 caracteres)").apply { inputType = 129 }; c.addView(password)
-        val message = tv("Firebase Authentication protege la contraseña; la aplicación no la guarda.", 12f, false, gray).apply {
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        c.addView(message)
-        c.addView(button("INGRESAR") {
-            repo.login(email.text.toString(), password.text.toString()) { error ->
-                if (error == null) showApp() else message.text = error
-            }
-        })
-        c.addView(button("CREAR CUENTA") {
-            if (password.text.length < 6) message.text = "La contraseña debe tener al menos 6 caracteres."
-            else repo.register(email.text.toString(), password.text.toString()) { error ->
-                if (error == null) showApp() else message.text = error
-            }
-        })
-        c.addView(button("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() })
+        val email = field("Correo electrónico").apply { inputType = 33 }; c.addView(email)
+        val password = field("Contraseña (mínimo 6 caracteres)").apply {
+            inputType = 129; isSaveEnabled = false
+        }; c.addView(password)
+        val message = tv("", 12f, false, gray); c.addView(message)
+        val login = button("INGRESAR") { model.authenticate(email.text.toString(), password.text.toString(), false) }
+        val register = button("CREAR CUENTA") { model.authenticate(email.text.toString(), password.text.toString(), true) }
+        c.addView(login); c.addView(register)
+        val accessibility = button("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
+        c.addView(accessibility)
+        message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         show(scroll(c))
+        updateAuthUi = { session ->
+            val busy = session.phase == "authenticating"
+            login.isEnabled = !busy; register.isEnabled = !busy; accessibility.isEnabled = !busy
+            email.isEnabled = !busy; password.isEnabled = !busy
+            message.text = session.message.ifBlank { "Ingresa con tu correo y contraseña." }
+        }
+        updateAuthUi?.invoke(model.session.value ?: SessionState("signedOut"))
+    }
+    private fun bind(field: EditText, draft: Draft, key: String) {
+        field.setText(draft.value(key)); field.isEnabled = !draft.locked
+        field.doAfterTextChanged { draft.set(key, it.toString()); model.draftEdited() }
+    }
+    private fun bind(spinner: Spinner, draft: Draft, key: String, values: List<String>) {
+        spinner.setSelection(values.indexOf(draft.value(key, values.first())).coerceAtLeast(0))
+        spinner.isEnabled = !draft.locked
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                draft.set(key, values[position]); model.draftEdited()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+    private fun attachSubmission(kind: String, message: TextView, submit: Button, another: Button, inputs: List<View>) {
+        message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        updateDraftUi = {
+            val d = model.draft(kind)
+            message.text = if (model.storageError.isNotBlank()) model.storageError else when (d.status) {
+                "pending" -> "Pendiente de sincronización. Conservamos este envío al cerrar la app."
+                "confirmed" -> "Sincronizado · confirmado por el servidor."
+                "failed" -> "Sin confirmar: ${d.error}"
+                else -> "Borrador guardado en este dispositivo."
+            }
+            inputs.forEach { it.isEnabled = !d.locked }
+            submit.isEnabled = d.status !in listOf("pending", "confirmed") && model.storageError.isEmpty()
+            if (d.status == "failed") submit.text = "REINTENTAR MISMO ENVÍO"
+            another.visibility = if (d.status == "confirmed") View.VISIBLE else View.GONE
+        }
+        updateDraftUi?.invoke()
     }
     private fun home() {
+        remember("home", 0)
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Prototipo académico · Zipaquirá"))
         c.addView(tv("Firestore conserva cambios locales sin conexión. Una escritura se confirma al responder el servidor.", 12f, false, Color.WHITE).apply {
             setBackgroundColor(teal); setPadding(dp(20), dp(10), dp(20), dp(10))
@@ -249,6 +348,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
     private fun pets() {
+        remember("pets", 2)
         val c = root(); c.addView(header("Directorio de mascotas", "Registros públicos · 30 más recientes"))
         c.addView(button("+ REGISTRAR MASCOTA") { newPet() })
         val list = root(); c.addView(list); show(scroll(c))
@@ -260,6 +360,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
     private fun newPet() {
+        remember("newPet", 2)
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
         val name = field("Nombre", 80); c.addView(name)
         val species = select(listOf("Perro", "Gato")); c.addView(spinnerLabel("Especie", species)); c.addView(species)
@@ -268,35 +369,25 @@ class MainActivity : AppCompatActivity() {
         val age = field("Edad aproximada", 40); c.addView(age)
         val color = field("Color", 80); c.addView(color)
         val territory = select(TERRITORIES.map { it.label }); c.addView(spinnerLabel("Comuna", territory)); c.addView(territory)
-        val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray).apply {
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }; c.addView(message)
-        var saving = false
-        var formGeneration = 0
-        c.addView(button("GUARDAR MASCOTA") {
-            if (saving) return@button
+        val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray); c.addView(message)
+        val draft = model.petDraft
+        bind(name, draft, "name"); bind(breed, draft, "breed"); bind(age, draft, "age"); bind(color, draft, "color")
+        bind(species, draft, "species", listOf("Perro", "Gato"))
+        bind(sex, draft, "sex", listOf("Hembra", "Macho", "No determinado"))
+        bind(territory, draft, "territory", TERRITORIES.map { it.id })
+        val submit = button("GUARDAR MASCOTA") {
             if (name.text.isBlank() || breed.text.isBlank() || age.text.isBlank() || color.text.isBlank()) {
-                message.text = "Completa nombre, raza, edad y color."; return@button
-            }
-            saving = true
-            message.text = "Pendiente de sincronización…"
-            repo.createPet(Pet(name = name.text.toString(), species = species.selectedItem.toString(),
-                breed = breed.text.toString(), sex = sex.selectedItem.toString(), age = age.text.toString(),
-                color = color.text.toString(), territoryId = TERRITORIES[territory.selectedItemPosition].id)) { error ->
-                if (error == null) {
-                    toast("Mascota confirmada por el servidor")
-                    if (screenGeneration == formGeneration) pets()
-                } else {
-                    saving = false
-                    if (screenGeneration == formGeneration) message.text = "Falló el guardado: $error"
-                    toast("Falló el guardado: $error")
-                }
-            }
-        })
+                message.text = "Completa nombre, raza, edad y color."
+            } else model.submit("pet")
+        }
+        val another = button("REGISTRAR OTRA MASCOTA") { model.startAnother("pet"); newPet() }
+        c.addView(submit); c.addView(another)
         show(scroll(c))
-        formGeneration = screenGeneration
+        attachSubmission("pet", message, submit, another, listOf(name, breed, age, color, species, sex, territory))
     }
+
     private fun petDetail(id: String) {
+        remember("pet:$id", 2)
         val c = root(); c.addView(header("Detalle Mascota", "Ficha pública"))
         val body = root(); c.addView(body); show(scroll(c))
         listeners.add(repo.observePet(id) { p, cache, error ->
@@ -320,6 +411,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
     private fun reports() {
+        remember("reports", 1)
         val c = root(); c.addView(header("Reportes", "Propios o de funcionario · 30 más recientes"))
         c.addView(button("+ NUEVO REPORTE") { newReport() })
         val list = root(); c.addView(list); show(scroll(c))
@@ -352,6 +444,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun newReport() {
+        remember("newReport", 1)
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
         c.addView(tv("📷 Foto: función simulada. No se suben imágenes.", 12f, false, gray))
         val name = field("Nombre de mascota (si se conoce)", 80); c.addView(name)
@@ -362,33 +455,24 @@ class MainActivity : AppCompatActivity() {
             minLines = 4; minimumHeight = dp(110); gravity = Gravity.TOP
         }; c.addView(desc)
         c.addView(tv("No incluyas datos personales de terceros.", 11f, false, gray))
-        val message = tv("", 12f, false, teal).apply {
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }; c.addView(message)
-        var saving = false
-        var formGeneration = 0
-        c.addView(button("ENVIAR REPORTE") {
-            if (saving) return@button
-            if (desc.text.isBlank()) { message.text = "Escribe una descripción."; return@button }
-            saving = true
-            message.text = "Pendiente de sincronización…"
-            repo.createReport(Report(petName = name.text.toString(), type = type.selectedItem.toString(),
-                species = species.selectedItem.toString(), territoryId = TERRITORIES[territory.selectedItemPosition].id,
-                description = desc.text.toString())) { error ->
-                if (error == null) {
-                    toast("Reporte confirmado por el servidor")
-                    if (screenGeneration == formGeneration) reports()
-                } else {
-                    saving = false
-                    if (screenGeneration == formGeneration) message.text = "Falló el envío: $error"
-                    toast("Falló el envío: $error")
-                }
-            }
-        })
+        val message = tv("", 12f, false, teal); c.addView(message)
+        val draft = model.reportDraft
+        bind(name, draft, "name"); bind(desc, draft, "description")
+        bind(type, draft, "type", listOf("Pérdida", "Encontrado", "Avistamiento"))
+        bind(species, draft, "species", listOf("Perro", "Gato"))
+        bind(territory, draft, "territory", TERRITORIES.map { it.id })
+        val submit = button("ENVIAR REPORTE") {
+            if (desc.text.isBlank()) message.text = "Escribe una descripción."
+            else model.submit("report")
+        }
+        val another = button("CREAR OTRO REPORTE") { model.startAnother("report"); newReport() }
+        c.addView(submit); c.addView(another)
         show(scroll(c))
-        formGeneration = screenGeneration
+        attachSubmission("report", message, submit, another, listOf(name, desc, type, species, territory))
     }
+
     private fun reportDetail(id: String) {
+        remember("report:$id", 1)
         val c = root(); c.addView(header("Detalle del reporte", "Seguimiento"))
         val body = root(); c.addView(body); show(scroll(c))
         listeners.add(repo.observeReport(id) { r, cache, error ->
@@ -413,6 +497,7 @@ class MainActivity : AppCompatActivity() {
         })
     }
     private fun territory() {
+        remember("territory", 3)
         val c = root(); c.addView(header("Territorio", "Comunas del prototipo"))
         c.addView(card().apply { addView(tv("Zipaquirá", 20f, true)); addView(tv("División usada para clasificar registros. Sin cifras municipales verificadas.")) })
         TERRITORIES.forEach { c.addView(card().apply { addView(tv(it.label, 14f, true)) }) }
@@ -436,12 +521,14 @@ class MainActivity : AppCompatActivity() {
                 accessibilityScrollY = (content.getChildAt(0) as? ScrollView)?.scrollY ?: 0
                 update(value)
                 accessibilityPreferences.edit().putBoolean(key, value).apply()
-                if (repo.uid == null) accessibilityScreen() else renderTab()
+                showApp()
             }
         })
         addView(tv(detail, 13f, false, gray))
     }
     private fun accessibilityScreen() {
+        accessibilityOpen = true
+        if (model.ready) remember("accessibility", 4)
         applySystemBars()
         val c = root(); c.addView(header("Accesibilidad", "Ajustes guardados en este dispositivo"))
         c.addView(heading("Personaliza la lectura y los colores"))
@@ -464,13 +551,14 @@ class MainActivity : AppCompatActivity() {
         })
         c.addView(button("← VOLVER") {
             accessibilityOpen = false; accessibilityScrollY = 0
-            if (repo.uid == null) authScreen() else renderTab()
+            if (!model.ready) authScreen() else profileMenu()
         })
         val settingsScroll = scroll(c)
         show(settingsScroll)
         if (accessibilityScrollY > 0) settingsScroll.post { settingsScroll.scrollTo(0, accessibilityScrollY) }
     }
     private fun profileMenu() {
+        remember("profile", 4)
         val c = root(); c.addView(header("Mi perfil", "Cuenta y preferencias"))
         c.addView(card().apply {
             addView(tv(repo.email, 16f, true))
@@ -479,7 +567,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(card().apply {
             isFocusable = true
             contentDescription = "Abrir ajustes de accesibilidad: texto más grande, contraste alto, paleta para daltonismo y TalkBack"
-            setOnClickListener { accessibilityOpen = true; renderTab() }
+            setOnClickListener { accessibilityOpen = true; accessibilityScreen() }
             addView(heading("Accesibilidad").apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
             addView(tv("Texto grande, contraste alto, colores accesibles y lector de pantalla.", 12f, false, gray).apply {
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -491,7 +579,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(upcomingOption("Cambiar contraseña"))
         c.addView(upcomingOption("Cambiar información de tus mascotas"))
         c.addView(button("CERRAR SESIÓN") {
-            repo.logout(); tab = 0; previousTab = 0; accessibilityOpen = false; showApp()
+            accessibilityOpen = false; model.logout()
         })
         show(scroll(c))
     }

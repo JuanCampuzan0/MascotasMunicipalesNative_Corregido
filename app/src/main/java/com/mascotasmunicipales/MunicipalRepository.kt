@@ -18,13 +18,13 @@ class MunicipalRepository {
 
     fun register(email: String, password: String, done: (String?) -> Unit) {
         auth.createUserWithEmailAndPassword(email.trim(), password).addOnSuccessListener {
-            ensureProfile(done)
+            done(null)
         }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo registrar") }
     }
 
     fun login(email: String, password: String, done: (String?) -> Unit) {
         auth.signInWithEmailAndPassword(email.trim(), password).addOnSuccessListener {
-            ensureProfile(done)
+            done(null)
         }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo ingresar") }
     }
 
@@ -32,10 +32,15 @@ class MunicipalRepository {
         val user = auth.currentUser ?: return done("Inicia sesión")
         val ref = db.collection("users").document(user.uid)
         ref.get().addOnSuccessListener { snap ->
-            if (snap.exists()) done(null) else ref.set(mapOf(
-                "email" to user.email.orEmpty(), "role" to "citizen",
-                "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
-            )).addOnSuccessListener { done(null) }
+            if (snap.exists() && !snap.metadata.hasPendingWrites()) done(null)
+            else db.runTransaction { transaction ->
+                // Dos dispositivos pueden iniciar la misma cuenta simultáneamente.
+                if (!transaction.get(ref).exists()) transaction.set(ref, mapOf(
+                    "email" to user.email.orEmpty(), "role" to "citizen",
+                    "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
+                ))
+                null
+            }.addOnSuccessListener { done(null) }
                 .addOnFailureListener { done(it.localizedMessage ?: "No se pudo crear el perfil") }
         }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo consultar el perfil") }
     }
@@ -85,32 +90,43 @@ class MunicipalRepository {
             done(if (snap?.exists() == true) report(snap) else null, snap?.metadata?.isFromCache ?: false, error?.localizedMessage)
         }
 
-    fun createPet(p: Pet, done: (String?) -> Unit) {
+    fun observeSubmission(collection: String, id: String,
+        done: (DocumentSnapshot?, String?) -> Unit): ListenerRegistration =
+        db.collection(collection).document(id).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->
+            done(snap, error?.let { it.localizedMessage ?: "No se pudo comprobar el envío" })
+        }
+
+    fun afterPendingWrites(done: (String?) -> Unit) {
+        db.waitForPendingWrites().addOnSuccessListener { done(null) }
+            .addOnFailureListener { done(it.localizedMessage ?: "No se pudo comprobar la cola de envíos") }
+    }
+
+    fun createPet(id: String, p: Pet, done: (String?) -> Unit) {
         val owner = uid ?: return done("Inicia sesión")
-        val ref = db.collection("pets").document()
+        val ref = db.collection("pets").document(id)
         ref.set(mapOf(
             "ownerId" to owner, "name" to p.name.trim(), "species" to p.species,
             "breed" to p.breed.trim(), "sex" to p.sex, "age" to p.age.trim(),
             "color" to p.color.trim(), "territoryId" to p.territoryId,
             "status" to "Con responsable", "photoKey" to "", "qrCode" to "ZPQ-${ref.id.take(8).uppercase()}",
             "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
-        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage) }
+        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo guardar el registro") }
     }
 
-    fun createReport(r: Report, done: (String?) -> Unit) {
+    fun createReport(id: String, r: Report, done: (String?) -> Unit) {
         val owner = uid ?: return done("Inicia sesión")
-        db.collection("reports").document().set(mapOf(
+        db.collection("reports").document(id).set(mapOf(
             "ownerId" to owner, "petId" to r.petId, "petName" to r.petName.trim(),
             "type" to r.type, "species" to r.species, "territoryId" to r.territoryId,
             "description" to r.description.trim(), "status" to "Abierto",
             "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
-        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage) }
+        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo guardar el registro") }
     }
 
     fun updateReportStatus(id: String, status: String, done: (String?) -> Unit) {
         db.collection("reports").document(id).update(mapOf(
             "status" to status, "updatedAt" to FieldValue.serverTimestamp()
-        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage) }
+        )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo guardar el registro") }
     }
 
     fun petCount(done: (Long?, String?) -> Unit) {

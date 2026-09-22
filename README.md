@@ -2,6 +2,16 @@
 
 Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración incluidas en `drawable-nodpi`.
 
+## Versión 1.2: recuperación y sesión
+
+- `AppViewModel` conserva la sesión y las operaciones fuera de `MainActivity`. El ingreso tiene una sola transición a la aplicación, desactiva envíos repetidos y muestra errores de preparación del perfil con **Reintentar perfil**. La creación del perfil usa una transacción para tolerar el ingreso simultáneo desde dos dispositivos.
+- `DraftStore` guarda un borrador de mascota y uno de reporte por UID, la pantalla actual y el regreso desde Perfil. Usa un archivo privado con escritura atómica en `noBackupFilesDir`; no guarda contraseñas ni se incluye en copias de seguridad. Guarda tras una pausa breve al escribir, al navegar, al pasar a segundo plano y antes de enviar.
+- Cada envío recibe un ID estable que se guarda **antes** de llamar a Firestore. El formulario queda bloqueado mientras se comprueba el envío. Reintentar conserva ID y contenido; solo **Registrar otra mascota / Crear otro reporte**, después de la confirmación, inicia un registro diferente.
+- Al reiniciar, la app espera que Firestore termine su cola pendiente y después consulta ese ID. Solo una respuesta de escritura exitosa o una lectura del servidor confirma la sincronización. La caché por sí sola no confirma. Un rechazo o una comprobación fallida mantiene el registro local y ofrece reintento; la ausencia de confirmación no se presenta como éxito.
+- Los borradores se recuperan al volver a la misma cuenta en el mismo dispositivo. No se sincronizan entre dispositivos. Desinstalar o borrar los datos de la app elimina estos borradores y su historial local. Un cierre abrupto antes del guardado puede perder los últimos 250 ms de edición; el ID de un envío se guarda de forma síncrona antes de encolarlo. Si ese guardado falla, se bloquea el envío.
+
+El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.2 (versionCode 3)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
+
 ## Configuración manual necesaria
 
 **Configuración Android:** `app/google-services.json` está incluido en el repositorio para la app `com.mascotasmunicipales` del proyecto Firebase `mascotas-municipales`. Es configuración de cliente; no contiene credenciales administrativas ni claves privadas. El repositorio es público, por lo que cualquier persona puede leer estos identificadores. Nunca agregue credenciales de cuenta de servicio ni contraseñas. Para usar otro proyecto Firebase, reemplace el archivo por el JSON descargado desde Firebase Console > Configuración del proyecto > Tus apps > app Android.
@@ -49,13 +59,19 @@ $env:FIREBASE_PROJECT_ID = "ID_REAL"
 firebase emulators:exec --only auth,firestore --project $env:FIREBASE_PROJECT_ID "node --test tests/firestore.rules.test.mjs"
 ```
 
-Las ocho pruebas de reglas pasaron con emuladores locales. Cubren acceso anónimo, creación legítima, consultas acotadas, propiedad, privacidad de usuarios, lectura de funcionario y escalada de rol. Para probar Android contra emuladores, configure **solo una compilación local de prueba** con `FirebaseAuth.getInstance().useEmulator("10.0.2.2", 9099)` y `FirebaseFirestore.getInstance().useEmulator("10.0.2.2", 8080)` antes de usar los SDK. No deje esa configuración en la compilación normal.
+Las 18 pruebas de reglas pasaron con emuladores locales. Cubren acceso anónimo a mascotas y reportes, creación legítima, límites de consultas, propiedad inmutable, privacidad, campos extra y tipos, fechas del servidor, permisos de funcionarios, borrados y escalada de rol al crear el propio perfil o actualizarlo. Cada prueba limpia la base del emulador y prepara sus propios datos; se exige `FIRESTORE_EMULATOR_HOST` en loopback para impedir apuntar estas pruebas a otro servidor. Ejecútelas con una base local de prueba desechable. Para probar Android contra emuladores, configure **solo una compilación local de prueba** con `FirebaseAuth.getInstance().useEmulator("10.0.2.2", 9099)` y `FirebaseFirestore.getInstance().useEmulator("10.0.2.2", 8080)` antes de usar los SDK. No deje esa configuración en la compilación normal.
 
 La compilación `gradlew.bat :app:assembleDebug` pasó con el archivo JSON entregado. También se probó en un emulador Pixel 7 Pro con Android 13 usando una compilación temporal dirigida **solo a los emuladores locales** de Authentication y Firestore. Pasaron registro, ingreso, cierre de sesión, recuperación de sesión tras reiniciar el proceso, alta y detalle de mascota, alta y detalle de reporte con especie/comuna/descripción, cambio a «Resuelto», aislamiento de reportes entre dos cuentas ficticias y sincronización de un reporte creado sin red (de «Pendiente de sincronización» a «Sincronizado» tras reconectar). Después de optimizar, se verificó que un doble toque sin red crea un solo reporte, que la confirmación tardía no saca al usuario de Perfil y que una lista vacía sin red se identifica como caché. La compilación temporal no forma parte de esta entrega. No se crearon usuarios ni registros en Firebase remoto. No se probó con dos dispositivos ni se verificó este flujo en producción.
 
-`gradlew.bat :app:lintDebug` terminó correctamente: cero errores y 19 advertencias no bloqueantes. Incluyen cadenas españolas escritas directamente en Kotlin, recursos visuales no usados, ausencia de ícono propio y recomendaciones de actualizar el SDK objetivo y algunas dependencias. Los cambios de SDK y orientación requieren una prueba de compatibilidad específica antes de aplicarse.
+`gradlew.bat :app:lintDebug` terminó correctamente: cero errores y 16 advertencias no bloqueantes. Incluyen cadenas españolas escritas directamente en Kotlin, recursos visuales no usados, ausencia de ícono propio y recomendaciones de actualizar el SDK objetivo y algunas dependencias. Los cambios de SDK y orientación requieren una prueba de compatibilidad específica antes de aplicarse.
 
 La siembra es opcional y explícita: `node scripts/seed-demo.mjs` solo muestra vista previa. Tras configurar credenciales administrativas de confianza y el ID real, `node scripts/seed-demo.mjs --apply` crea solo documentos ficticios de ID fijo ausentes; no sobrescribe. Para emulador use `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`. La app nunca siembra automáticamente.
+
+## Verificación de la versión 1.2
+
+Pasaron `:app:assembleDebug` y `:app:lintDebug --offline`, además de las 18 pruebas de reglas. En Pixel 7 Pro / Android 13 conectado únicamente a emuladores locales se verificaron borradores de reporte y mascota tras reiniciar el proceso, conservación de selecciones de especie/sexo/comuna, recreación de la Activity al cambiar la escala de texto del sistema, regreso desde Perfil, aislamiento de borradores entre dos cuentas ficticias y restauración al volver a la cuenta original.
+
+También se comprobó un reporte enviado sin conexión: conservó el mismo ID tras reiniciar, no existía aún en el servidor mientras estaba pendiente, se confirmó al reconectar y el servidor contenía exactamente un documento con ese ID. Se comprobó además un fallo de creación del perfil y su reintento, y un reporte rechazado que conservó su ID tras reiniciar y se confirmó exactamente una vez al reintentar. El protocolo reproducible está en [tests/android-recovery.md](tests/android-recovery.md).
 
 ## Verificación pendiente en Firebase remoto
 

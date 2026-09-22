@@ -1,14 +1,21 @@
 package com.mascotasmunicipales
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputFilter
 import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import java.text.DateFormat
@@ -16,10 +23,21 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private val repo = MunicipalRepository()
-    private val teal = Color.rgb(20, 127, 149)
-    private val bg = Color.rgb(241, 246, 248)
-    private val dark = Color.rgb(32, 49, 58)
-    private val gray = Color.rgb(105, 120, 128)
+    private val teal get() = when {
+        highContrast -> Color.BLACK
+        colorblindPalette -> Color.rgb(0, 82, 155)
+        else -> Color.rgb(20, 127, 149)
+    }
+    private val bg get() = if (highContrast) Color.WHITE else Color.rgb(241, 246, 248)
+    private val dark get() = if (highContrast) Color.BLACK else Color.rgb(32, 49, 58)
+    private val gray get() = if (highContrast) Color.BLACK else Color.rgb(85, 100, 109)
+    private val textScale get() = if (largeText) 1.3f else 1f
+    private val accessibilityPreferences by lazy { getSharedPreferences("accessibility", MODE_PRIVATE) }
+    private var largeText = false
+    private var highContrast = false
+    private var colorblindPalette = false
+    private var accessibilityOpen = false
+    private var accessibilityScrollY = 0
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
     private val listeners = mutableListOf<ListenerRegistration>()
@@ -31,6 +49,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        largeText = accessibilityPreferences.getBoolean("large_text", false)
+        highContrast = accessibilityPreferences.getBoolean("high_contrast", false)
+        colorblindPalette = accessibilityPreferences.getBoolean("colorblind_palette", false)
         repo.auth.addAuthStateListener(authListener)
     }
     override fun onDestroy() {
@@ -39,54 +60,87 @@ class MainActivity : AppCompatActivity() {
     private fun clearListeners() { listeners.forEach { it.remove() }; listeners.clear() }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun tv(value: String, size: Float = 14f, bold: Boolean = false, color: Int = dark) = TextView(this).apply {
-        text = value; textSize = size; setTextColor(color)
+        text = value; textSize = size * textScale; setTextColor(color)
         typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         setPadding(dp(2), dp(2), dp(2), dp(2))
     }
-    private fun shape() = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(16).toFloat() }
+    private fun heading(value: String, size: Float = 16f, color: Int = dark) = tv(value, size, true, color).apply {
+        ViewCompat.setAccessibilityHeading(this, true)
+    }
+    private fun shape() = GradientDrawable().apply {
+        setColor(Color.WHITE); cornerRadius = dp(16).toFloat()
+        if (highContrast) setStroke(dp(2), Color.BLACK)
+    }
     private fun root() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
     private fun card() = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; background = shape(); setPadding(dp(14), dp(12), dp(14), dp(12))
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(6), dp(10), dp(6)) }
     }
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
-        text = label; textSize = 13f; setTextColor(Color.WHITE); setBackgroundColor(teal)
+        text = label; textSize = 13f * textScale; setTextColor(Color.WHITE); setBackgroundColor(teal)
         typeface = Typeface.DEFAULT_BOLD; setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(-1, dp(50)).apply { setMargins(dp(10), dp(7), dp(10), dp(7)) }
+        minHeight = dp(50)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(7), dp(10), dp(7)) }
     }
     private fun field(hintValue: String, maxLength: Int = 2000) = EditText(this).apply {
         hint = hintValue; background = shape(); setPadding(dp(14), dp(10), dp(14), dp(10))
+        textSize = 16f * textScale; minHeight = dp(52); setTextColor(dark); setHintTextColor(gray)
         filters = arrayOf(InputFilter.LengthFilter(maxLength))
-        layoutParams = LinearLayout.LayoutParams(-1, dp(52)).apply { setMargins(dp(10), dp(5), dp(10), dp(5)) }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(5), dp(10), dp(5)) }
     }
     private fun select(values: List<String>) = Spinner(this).apply {
-        adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, values)
-        layoutParams = LinearLayout.LayoutParams(-1, dp(50))
+        id = View.generateViewId()
+        adapter = object : ArrayAdapter<String>(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, values) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                super.getView(position, convertView, parent).apply {
+                    (this as? TextView)?.textSize = 16f * textScale
+                    minimumHeight = dp(48)
+                }
+            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                super.getDropDownView(position, convertView, parent).apply {
+                    (this as? TextView)?.textSize = 16f * textScale
+                    minimumHeight = dp(48)
+                }
+        }
+        minimumHeight = dp(50)
+        layoutParams = LinearLayout.LayoutParams(-1, -2)
     }
+    private fun spinnerLabel(label: String, spinner: Spinner) = tv(label, 14f, true).apply { labelFor = spinner.id }
     private fun scroll(v: View) = ScrollView(this).apply { addView(v); isFillViewport = true }
     private fun header(title: String, subtitle: String = "") = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
         setBackgroundColor(teal); setPadding(dp(20), dp(18), dp(20), dp(18))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
-            addView(tv(title, 21f, true, Color.WHITE))
-            if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.rgb(220, 240, 245)))
+            addView(heading(title, 21f, Color.WHITE))
+            if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE))
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (repo.uid != null) {
             val inProfile = tab == 4
-            addView(tv(if (inProfile) "←\nVolver" else "👤\nPerfil", 11f, true, teal).apply {
+            addView(tv(if (inProfile) "Volver" else "Perfil", 12f, true, teal).apply {
                 gravity = Gravity.CENTER
-                contentDescription = if (inProfile) "Volver desde el menú de perfil" else "Abrir menú de perfil"
+                minHeight = dp(56); minWidth = dp(64)
+                contentDescription = if (accessibilityOpen) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
                 background = shape()
                 setOnClickListener {
-                    if (inProfile) tab = previousTab
+                    if (accessibilityOpen) accessibilityOpen = false
+                    else if (inProfile) tab = previousTab
                     else { previousTab = tab; tab = 4 }
                     renderTab()
                 }
-            }, LinearLayout.LayoutParams(dp(56), dp(56)))
+            }, LinearLayout.LayoutParams(-2, -2))
         }
     }
     private fun show(v: View) { screenGeneration++; clearListeners(); content.removeAllViews(); content.addView(v) }
+    @Suppress("DEPRECATION")
+    private fun applySystemBars() {
+        window.statusBarColor = teal
+        window.navigationBarColor = bg
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = true
+        }
+    }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
     private fun date(t: com.google.firebase.Timestamp?) = t?.toDate()?.let {
         DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.forLanguageTag("es-CO")).format(it)
@@ -98,27 +152,45 @@ class MainActivity : AppCompatActivity() {
     }
     private fun showApp() {
         clearListeners()
+        if (tab != 4) accessibilityOpen = false
+        applySystemBars()
         val r = root(); content = FrameLayout(this)
         r.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         nav = LinearLayout(this).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), dp(4), dp(4), dp(4)) }
         listOf("Inicio", "Reportes", "Mascotas", "Territorio").forEachIndexed { i, label ->
-            nav.addView(tv("${listOf("⌂", "▣", "♥", "⌖")[i]}\n$label", 11f, false, if (i == tab) teal else gray).apply {
-                gravity = Gravity.CENTER; setOnClickListener { tab = i; renderTab() }
-            }, LinearLayout.LayoutParams(0, dp(60), 1f))
+            nav.addView(tv(label, 11f, i == tab, if (i == tab) teal else gray).apply {
+                gravity = Gravity.CENTER; minHeight = dp(60)
+                setPadding(dp(2), dp(8), dp(2), dp(8))
+                contentDescription = if (i == tab) "$label, pestaña seleccionada" else "$label, abrir pestaña"
+                setOnClickListener { accessibilityOpen = false; tab = i; renderTab() }
+            }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         r.addView(nav); setContentView(r)
         if (repo.uid == null) authScreen() else renderTab()
     }
     private fun renderTab() {
         if (repo.uid == null) return authScreen()
-        (0 until nav.childCount).forEach { (nav.getChildAt(it) as TextView).setTextColor(if (it == tab) teal else gray) }
-        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> profileMenu() }
+        (0 until nav.childCount).forEach {
+            (nav.getChildAt(it) as TextView).apply {
+                val selected = it == tab && !accessibilityOpen
+                setTextColor(if (selected && highContrast) Color.WHITE else if (selected) teal else gray)
+                typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                background = if (selected) GradientDrawable().apply {
+                    setColor(if (highContrast) Color.BLACK else Color.rgb(224, 240, 247))
+                    cornerRadius = dp(8).toFloat()
+                } else null
+                contentDescription = if (selected) "$text, pestaña seleccionada" else "$text, abrir pestaña"
+            }
+        }
+        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> if (accessibilityOpen) accessibilityScreen() else profileMenu() }
     }
     private fun authScreen() {
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Registro e ingreso · Zipaquirá"))
         val email = field("Correo electrónico"); c.addView(email)
         val password = field("Contraseña (mínimo 6 caracteres)").apply { inputType = 129 }; c.addView(password)
-        val message = tv("Firebase Authentication protege la contraseña; la aplicación no la guarda.", 12f, false, gray)
+        val message = tv("Firebase Authentication protege la contraseña; la aplicación no la guarda.", 12f, false, gray).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
         c.addView(message)
         c.addView(button("INGRESAR") {
             repo.login(email.text.toString(), password.text.toString()) { error ->
@@ -131,6 +203,7 @@ class MainActivity : AppCompatActivity() {
                 if (error == null) showApp() else message.text = error
             }
         })
+        c.addView(button("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() })
         show(scroll(c))
     }
     private fun home() {
@@ -138,7 +211,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(tv("Firestore conserva cambios locales sin conexión. Una escritura se confirma al responder el servidor.", 12f, false, Color.WHITE).apply {
             setBackgroundColor(teal); setPadding(dp(20), dp(10), dp(20), dp(10))
         })
-        c.addView(tv("Panorama del prototipo", 16f, true))
+        c.addView(heading("Panorama del prototipo"))
         val petsNumber = tv("Cargando…", 22f, true, teal)
         val reportsNumber = tv("Cargando…", 22f, true, teal)
         c.addView(card().apply { addView(petsNumber); addView(tv("Mascotas registradas · hasta 1000")) })
@@ -147,7 +220,7 @@ class MainActivity : AppCompatActivity() {
         repo.activeReportCount { count, _ -> reportsNumber.text = count?.toString() ?: "Sin conexión" }
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
-        c.addView(tv("Registros recientes · máximo 30", 15f, true))
+        c.addView(heading("Registros recientes · máximo 30", 15f))
         val list = root(); c.addView(list)
         show(scroll(c))
         listeners.add(repo.observePets(3) { pets, cache, error ->
@@ -158,13 +231,17 @@ class MainActivity : AppCompatActivity() {
         })
     }
     private fun petCard(p: Pet, cache: Boolean) = card().apply {
-        orientation = LinearLayout.HORIZONTAL; setOnClickListener { petDetail(p.id) }
+        orientation = LinearLayout.HORIZONTAL; isFocusable = true
+        contentDescription = "Abrir ficha de ${p.name}, ${p.species}, raza ${p.breed}, ${territoryLabel(p.territoryId)}, ${p.status}. ${state(p.pending, cache)}"
+        setOnClickListener { petDetail(p.id) }
         val res = photoResource(p.photoKey)
         if (res != 0) addView(ImageView(this@MainActivity).apply {
             setImageResource(res); scaleType = ImageView.ScaleType.CENTER_CROP
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(72), dp(72)))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             addView(tv(p.name, 16f, true))
             addView(tv("${p.species} · ${p.breed}", 12f, false, gray))
             addView(tv(territoryLabel(p.territoryId), 11f, false, gray))
@@ -185,13 +262,15 @@ class MainActivity : AppCompatActivity() {
     private fun newPet() {
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
         val name = field("Nombre", 80); c.addView(name)
-        val species = select(listOf("Perro", "Gato")); c.addView(tv("Especie")); c.addView(species)
+        val species = select(listOf("Perro", "Gato")); c.addView(spinnerLabel("Especie", species)); c.addView(species)
         val breed = field("Raza", 80); c.addView(breed)
-        val sex = select(listOf("Hembra", "Macho", "No determinado")); c.addView(tv("Sexo")); c.addView(sex)
+        val sex = select(listOf("Hembra", "Macho", "No determinado")); c.addView(spinnerLabel("Sexo", sex)); c.addView(sex)
         val age = field("Edad aproximada", 40); c.addView(age)
         val color = field("Color", 80); c.addView(color)
-        val territory = select(TERRITORIES.map { it.label }); c.addView(tv("Comuna")); c.addView(territory)
-        val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray); c.addView(message)
+        val territory = select(TERRITORIES.map { it.label }); c.addView(spinnerLabel("Comuna", territory)); c.addView(territory)
+        val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }; c.addView(message)
         var saving = false
         var formGeneration = 0
         c.addView(button("GUARDAR MASCOTA") {
@@ -229,6 +308,7 @@ class MainActivity : AppCompatActivity() {
             val res = photoResource(p.photoKey)
             if (res != 0) body.addView(ImageView(this).apply {
                 setImageResource(res); scaleType = ImageView.ScaleType.CENTER_CROP
+                contentDescription = "Fotografía ilustrativa de ${p.name}"
             }, LinearLayout.LayoutParams(-1, dp(190)))
             body.addView(card().apply {
                 addView(tv(p.name, 24f, true)); addView(tv("${p.species} · ${p.breed}"))
@@ -252,10 +332,19 @@ class MainActivity : AppCompatActivity() {
                     if (error != null) list.addView(tv("Error: $error"))
                     else if (reports.isEmpty()) list.addView(tv(if (cache) "Sin reportes en caché; conecta para verificar." else "Todavía no hay reportes visibles."))
                     else reports.forEach { r -> list.addView(card().apply {
+                        isFocusable = true
+                        contentDescription = "Abrir reporte de ${r.petName.ifBlank { "mascota sin identificar" }}, ${r.type}, ${r.status}, ${date(r.createdAt)}. ${state(r.pending, cache)}"
                         setOnClickListener { reportDetail(r.id) }
-                        addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 15f, true))
-                        addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray))
-                        addView(tv(state(r.pending, cache), 11f, false, teal))
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                        addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 15f, true).apply {
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        })
+                        addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray).apply {
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        })
+                        addView(tv(state(r.pending, cache), 11f, false, teal).apply {
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        })
                     }) }
                 }
                 listeners.add(if (role == "staff") repo.observeStaffReports(display) else repo.observeMyReports(display))
@@ -266,12 +355,16 @@ class MainActivity : AppCompatActivity() {
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
         c.addView(tv("📷 Foto: función simulada. No se suben imágenes.", 12f, false, gray))
         val name = field("Nombre de mascota (si se conoce)", 80); c.addView(name)
-        val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); c.addView(tv("Tipo de reporte")); c.addView(type)
-        val species = select(listOf("Perro", "Gato")); c.addView(tv("Especie")); c.addView(species)
-        val territory = select(TERRITORIES.map { it.label }); c.addView(tv("Ubicación (comuna)")); c.addView(territory)
-        val desc = field("Describe lo que observaste", 2000).apply { minLines = 4; layoutParams.height = dp(110); gravity = Gravity.TOP }; c.addView(desc)
+        val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); c.addView(spinnerLabel("Tipo de reporte", type)); c.addView(type)
+        val species = select(listOf("Perro", "Gato")); c.addView(spinnerLabel("Especie", species)); c.addView(species)
+        val territory = select(TERRITORIES.map { it.label }); c.addView(spinnerLabel("Ubicación (comuna)", territory)); c.addView(territory)
+        val desc = field("Describe lo que observaste", 2000).apply {
+            minLines = 4; minimumHeight = dp(110); gravity = Gravity.TOP
+        }; c.addView(desc)
         c.addView(tv("No incluyas datos personales de terceros.", 11f, false, gray))
-        val message = tv("", 12f, false, teal); c.addView(message)
+        val message = tv("", 12f, false, teal).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }; c.addView(message)
         var saving = false
         var formGeneration = 0
         c.addView(button("ENVIAR REPORTE") {
@@ -330,21 +423,75 @@ class MainActivity : AppCompatActivity() {
         if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
         addView(tv("Próximamente", 11f, true, teal))
     }
+    private fun accessibilityToggle(title: String, detail: String, key: String, checked: Boolean, update: (Boolean) -> Unit) = card().apply {
+        addView(SwitchCompat(this@MainActivity).apply {
+            text = title; isChecked = checked; textSize = 16f * textScale; setTextColor(dark)
+            minHeight = dp(56)
+            thumbTintList = ColorStateList.valueOf(Color.WHITE)
+            trackTintList = ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(teal, if (highContrast) Color.DKGRAY else Color.GRAY)
+            )
+            setOnCheckedChangeListener { _, value ->
+                accessibilityScrollY = (content.getChildAt(0) as? ScrollView)?.scrollY ?: 0
+                update(value)
+                accessibilityPreferences.edit().putBoolean(key, value).apply()
+                if (repo.uid == null) accessibilityScreen() else renderTab()
+            }
+        })
+        addView(tv(detail, 13f, false, gray))
+    }
+    private fun accessibilityScreen() {
+        applySystemBars()
+        val c = root(); c.addView(header("Accesibilidad", "Ajustes guardados en este dispositivo"))
+        c.addView(heading("Personaliza la lectura y los colores"))
+        c.addView(accessibilityToggle("Texto más grande",
+            "Aumenta el texto de la app y deja espacio para el tamaño de fuente configurado en Android.",
+            "large_text", largeText) { largeText = it })
+        c.addView(accessibilityToggle("Contraste alto",
+            "Usa texto negro, fondo blanco y bordes definidos para distinguir los controles.",
+            "high_contrast", highContrast) { highContrast = it })
+        c.addView(accessibilityToggle("Paleta para daltonismo",
+            "Usa azul como color principal. Los estados también se muestran con palabras. Con contraste alto activo se prioriza el blanco y negro.",
+            "colorblind_palette", colorblindPalette) { colorblindPalette = it })
+        c.addView(heading("Lector de pantalla", 16f))
+        c.addView(card().apply {
+            addView(tv("La app tiene etiquetas para TalkBack en navegación, formularios, fotos y registros. TalkBack se activa desde los ajustes de Android.", 13f))
+        })
+        c.addView(button("ABRIR ACCESIBILIDAD DE ANDROID") {
+            try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            catch (_: ActivityNotFoundException) { toast("Este dispositivo no tiene ajustes de accesibilidad disponibles.") }
+        })
+        c.addView(button("← VOLVER") {
+            accessibilityOpen = false; accessibilityScrollY = 0
+            if (repo.uid == null) authScreen() else renderTab()
+        })
+        val settingsScroll = scroll(c)
+        show(settingsScroll)
+        if (accessibilityScrollY > 0) settingsScroll.post { settingsScroll.scrollTo(0, accessibilityScrollY) }
+    }
     private fun profileMenu() {
         val c = root(); c.addView(header("Mi perfil", "Cuenta y preferencias"))
         c.addView(card().apply {
             addView(tv(repo.email, 16f, true))
-            addView(tv("Solo Cerrar sesión está disponible por ahora.", 12f, false, gray))
+            addView(tv("Accesibilidad y Cerrar sesión están disponibles.", 12f, false, gray))
         })
-        c.addView(upcomingOption("Accesibilidad",
-            "Colores de alto contraste para paneles y botones; texto más grande para facilitar la lectura."))
+        c.addView(card().apply {
+            isFocusable = true
+            contentDescription = "Abrir ajustes de accesibilidad: texto más grande, contraste alto, paleta para daltonismo y TalkBack"
+            setOnClickListener { accessibilityOpen = true; renderTab() }
+            addView(heading("Accesibilidad").apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+            addView(tv("Texto grande, contraste alto, colores accesibles y lector de pantalla.", 12f, false, gray).apply {
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            })
+        })
         c.addView(upcomingOption("Información de la aplicación"))
         c.addView(upcomingOption("Información de tu cuenta"))
         c.addView(upcomingOption("Cambiar correo electrónico"))
         c.addView(upcomingOption("Cambiar contraseña"))
         c.addView(upcomingOption("Cambiar información de tus mascotas"))
         c.addView(button("CERRAR SESIÓN") {
-            repo.logout(); tab = 0; previousTab = 0; showApp()
+            repo.logout(); tab = 0; previousTab = 0; accessibilityOpen = false; showApp()
         })
         show(scroll(c))
     }

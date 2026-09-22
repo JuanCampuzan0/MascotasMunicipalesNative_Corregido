@@ -5,6 +5,5 @@
 local.properties
 **/build/
 *.iml
-app/google-services.json
 node_modules/
 

@@ -4,7 +4,7 @@ Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hall
 
 ## Configuración manual necesaria
 
-**Configuración Android:** el clon local usado para desarrollar y probar tiene `app/google-services.json`, que coincide con `com.mascotasmunicipales`. El archivo se excluye de GitHub mediante `.gitignore`. Tras clonar el repositorio, descargue `google-services.json` desde Firebase Console > Configuración del proyecto > Tus apps > app Android y colóquelo en `app/google-services.json` antes de sincronizar Gradle. No use el JSON de otro proyecto.
+**Configuración Android:** `app/google-services.json` está incluido en el repositorio para la app `com.mascotasmunicipales` del proyecto Firebase `mascotas-municipales`. Es configuración de cliente; no contiene credenciales administrativas ni claves privadas. El repositorio es público, por lo que cualquier persona puede leer estos identificadores. Nunca agregue credenciales de cuenta de servicio ni contraseñas. Para usar otro proyecto Firebase, reemplace el archivo por el JSON descargado desde Firebase Console > Configuración del proyecto > Tus apps > app Android.
 
 **Estado de despliegue:** las reglas de `firestore.rules` se publicaron en la base `(default)` del proyecto configurado el 21 de septiembre de 2026. Los dos índices compuestos de `firestore.indexes.json` aparecen como **Habilitado** en Firebase Console. El proveedor Correo electrónico/contraseña también aparece **Habilitada**. No se sembraron mascotas, reportes ni usuarios en la base remota.
 

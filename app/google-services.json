@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "902740285984",
+    "project_id": "mascotas-municipales",
+    "storage_bucket": "mascotas-municipales.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:902740285984:android:c230dd8ac3fdde450f7a45",
+        "android_client_info": {
+          "package_name": "com.mascotasmunicipales"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEwbhRyJ97PCkLXI-s-ehvEN5crmoems8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

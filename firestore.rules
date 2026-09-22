@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function staff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+    }
+    function text(value, max) { return value is string && value.size() <= max; }
+    function territory(value) {
+      return value in ['comuna-1', 'comuna-2', 'comuna-3', 'comuna-4'];
+    }
+    function petValid(d) {
+      return d.keys().hasAll(['ownerId','name','species','breed','sex','age','color',
+        'territoryId','status','photoKey','qrCode','createdAt','updatedAt'])
+        && d.keys().hasOnly(['ownerId','name','species','breed','sex','age','color',
+        'territoryId','status','photoKey','qrCode','createdAt','updatedAt'])
+        && text(d.ownerId, 128) && d.ownerId.size() > 0
+        && text(d.name, 80) && d.name.size() > 0
+        && d.species in ['Perro','Gato']
+        && text(d.breed, 80) && d.breed.size() > 0
+        && d.sex in ['Hembra','Macho','No determinado']
+        && text(d.age, 40) && d.age.size() > 0
+        && text(d.color, 80) && d.color.size() > 0
+        && territory(d.territoryId)
+        && d.status in ['Con responsable','En adopción','En custodia']
+        && d.photoKey in ['', 'luna', 'michi', 'rocco', 'nina']
+        && d.qrCode is string && d.qrCode.matches('^ZPQ-[A-Z0-9]{8}$')
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+    function reportValid(d) {
+      return d.keys().hasAll(['ownerId','petId','petName','type','species','territoryId',
+        'description','status','createdAt','updatedAt'])
+        && d.keys().hasOnly(['ownerId','petId','petName','type','species','territoryId',
+        'description','status','createdAt','updatedAt'])
+        && text(d.ownerId, 128) && d.ownerId.size() > 0
+        && text(d.petId, 128) && text(d.petName, 80)
+        && d.type in ['Pérdida','Encontrado','Avistamiento']
+        && d.species in ['Perro','Gato']
+        && territory(d.territoryId)
+        && text(d.description, 2000) && d.description.size() > 0
+        && d.status in ['Abierto','Resuelto','Cerrado']
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || staff());
+      allow list: if staff() && request.query.limit != null && request.query.limit <= 30;
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['email','role','createdAt','updatedAt'])
+        && request.resource.data.keys().hasOnly(['email','role','createdAt','updatedAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'citizen'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      // Cambios de rol y contacto solo mediante Admin SDK / consola de confianza.
+      allow update, delete: if false;
+    }
+
+    match /pets/{petId} {
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 1000;
+      allow create: if signedIn() && petValid(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'Con responsable'
+        && request.resource.data.photoKey == ''
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn() && (resource.data.ownerId == request.auth.uid || staff())
+        && petValid(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name','species','breed','sex','age','color','territoryId','status','updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /reports/{reportId} {
+      allow get: if signedIn() && (resource.data.ownerId == request.auth.uid || staff());
+      allow list: if signedIn() && request.query.limit != null && request.query.limit <= 1000
+        && (resource.data.ownerId == request.auth.uid || staff());
+      allow create: if signedIn() && reportValid(request.resource.data)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'Abierto'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn() && (resource.data.ownerId == request.auth.uid || staff())
+        && reportValid(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (staff() || request.resource.data.status == 'Resuelto');
+      allow delete: if false;
+    }
+
+    match /territories/{territoryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -25,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private val listeners = mutableListOf<ListenerRegistration>()
     private var screenGeneration = 0
     private var tab = 0
+    private var previousTab = 0
     private var syncMessage = ""
     private val authListener = FirebaseAuth.AuthStateListener { showApp() }
 
@@ -64,9 +65,26 @@ class MainActivity : AppCompatActivity() {
     }
     private fun scroll(v: View) = ScrollView(this).apply { addView(v); isFillViewport = true }
     private fun header(title: String, subtitle: String = "") = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setBackgroundColor(teal); setPadding(dp(20), dp(18), dp(20), dp(18))
-        addView(tv(title, 21f, true, Color.WHITE))
-        if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.rgb(220, 240, 245)))
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        setBackgroundColor(teal); setPadding(dp(20), dp(18), dp(20), dp(18))
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tv(title, 21f, true, Color.WHITE))
+            if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.rgb(220, 240, 245)))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (repo.uid != null) {
+            val inProfile = tab == 4
+            addView(tv(if (inProfile) "←\nVolver" else "👤\nPerfil", 11f, true, teal).apply {
+                gravity = Gravity.CENTER
+                contentDescription = if (inProfile) "Volver desde el menú de perfil" else "Abrir menú de perfil"
+                background = shape()
+                setOnClickListener {
+                    if (inProfile) tab = previousTab
+                    else { previousTab = tab; tab = 4 }
+                    renderTab()
+                }
+            }, LinearLayout.LayoutParams(dp(56), dp(56)))
+        }
     }
     private fun show(v: View) { screenGeneration++; clearListeners(); content.removeAllViews(); content.addView(v) }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
@@ -83,8 +101,8 @@ class MainActivity : AppCompatActivity() {
         val r = root(); content = FrameLayout(this)
         r.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         nav = LinearLayout(this).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), dp(4), dp(4), dp(4)) }
-        listOf("Inicio", "Reportes", "Mascotas", "Territorio", "Perfil").forEachIndexed { i, label ->
-            nav.addView(tv("${listOf("⌂", "▣", "♥", "⌖", "⚙")[i]}\n$label", 11f, false, if (i == tab) teal else gray).apply {
+        listOf("Inicio", "Reportes", "Mascotas", "Territorio").forEachIndexed { i, label ->
+            nav.addView(tv("${listOf("⌂", "▣", "♥", "⌖")[i]}\n$label", 11f, false, if (i == tab) teal else gray).apply {
                 gravity = Gravity.CENTER; setOnClickListener { tab = i; renderTab() }
             }, LinearLayout.LayoutParams(0, dp(60), 1f))
         }
@@ -94,7 +112,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderTab() {
         if (repo.uid == null) return authScreen()
         (0 until nav.childCount).forEach { (nav.getChildAt(it) as TextView).setTextColor(if (it == tab) teal else gray) }
-        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> profile() }
+        when (tab) { 0 -> home(); 1 -> reports(); 2 -> pets(); 3 -> territory(); else -> profileMenu() }
     }
     private fun authScreen() {
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Registro e ingreso · Zipaquirá"))
@@ -307,21 +325,27 @@ class MainActivity : AppCompatActivity() {
         TERRITORIES.forEach { c.addView(card().apply { addView(tv(it.label, 14f, true)) }) }
         show(scroll(c))
     }
-    private fun profile() {
-        val c = root(); c.addView(header("Perfil y ajustes", "Cuenta y sincronización"))
-        val account = card(); account.addView(tv(repo.email, 16f, true))
-        val role = tv("Consultando rol…", 12f, false, gray); account.addView(role); c.addView(account)
-        repo.role { role.text = when (it) {
-            "staff" -> "Rol: Funcionario"
-            "citizen" -> "Rol: Ciudadano"
-            else -> "Rol no disponible; conecta para verificar."
-        } }
+    private fun upcomingOption(title: String, detail: String = "") = card().apply {
+        addView(tv(title, 15f, true))
+        if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
+        addView(tv("Próximamente", 11f, true, teal))
+    }
+    private fun profileMenu() {
+        val c = root(); c.addView(header("Mi perfil", "Cuenta y preferencias"))
         c.addView(card().apply {
-            addView(tv("🔄 Datos y sincronización", 14f, true))
-            addView(tv("Los registros indican pendiente, sincronizado o caché. Una escritura sin red sigue pendiente hasta que responda el servidor. $syncMessage", 12f, false, gray))
+            addView(tv(repo.email, 16f, true))
+            addView(tv("Solo Cerrar sesión está disponible por ahora.", 12f, false, gray))
         })
-        c.addView(card().apply { addView(tv("Jornadas, vacunación, adopciones y lectura real de QR: funciones simuladas, fuera del backend actual.", 12f, false, gray)) })
-        c.addView(button("CERRAR SESIÓN") { repo.logout(); tab = 0; showApp() })
+        c.addView(upcomingOption("Accesibilidad",
+            "Colores de alto contraste para paneles y botones; texto más grande para facilitar la lectura."))
+        c.addView(upcomingOption("Información de la aplicación"))
+        c.addView(upcomingOption("Información de tu cuenta"))
+        c.addView(upcomingOption("Cambiar correo electrónico"))
+        c.addView(upcomingOption("Cambiar contraseña"))
+        c.addView(upcomingOption("Cambiar información de tus mascotas"))
+        c.addView(button("CERRAR SESIÓN") {
+            repo.logout(); tab = 0; previousTab = 0; showApp()
+        })
         show(scroll(c))
     }
 }

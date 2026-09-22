@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.InputFilter
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
     private val listeners = mutableListOf<ListenerRegistration>()
+    private var screenGeneration = 0
     private var tab = 0
     private var syncMessage = ""
     private val authListener = FirebaseAuth.AuthStateListener { showApp() }
@@ -51,8 +53,9 @@ class MainActivity : AppCompatActivity() {
         typeface = Typeface.DEFAULT_BOLD; setOnClickListener { action() }
         layoutParams = LinearLayout.LayoutParams(-1, dp(50)).apply { setMargins(dp(10), dp(7), dp(10), dp(7)) }
     }
-    private fun field(hintValue: String) = EditText(this).apply {
+    private fun field(hintValue: String, maxLength: Int = 2000) = EditText(this).apply {
         hint = hintValue; background = shape(); setPadding(dp(14), dp(10), dp(14), dp(10))
+        filters = arrayOf(InputFilter.LengthFilter(maxLength))
         layoutParams = LinearLayout.LayoutParams(-1, dp(52)).apply { setMargins(dp(10), dp(5), dp(10), dp(5)) }
     }
     private fun select(values: List<String>) = Spinner(this).apply {
@@ -65,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         addView(tv(title, 21f, true, Color.WHITE))
         if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.rgb(220, 240, 245)))
     }
-    private fun show(v: View) { clearListeners(); content.removeAllViews(); content.addView(v) }
+    private fun show(v: View) { screenGeneration++; clearListeners(); content.removeAllViews(); content.addView(v) }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
     private fun date(t: com.google.firebase.Timestamp?) = t?.toDate()?.let {
         DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.forLanguageTag("es-CO")).format(it)
@@ -129,10 +132,11 @@ class MainActivity : AppCompatActivity() {
         c.addView(tv("Registros recientes · máximo 30", 15f, true))
         val list = root(); c.addView(list)
         show(scroll(c))
-        listeners.add(repo.observePets { pets, cache, error ->
+        listeners.add(repo.observePets(3) { pets, cache, error ->
             list.removeAllViews()
             if (error != null) list.addView(tv("Error: $error"))
-            else pets.take(3).forEach { list.addView(petCard(it, cache)) }
+            else if (pets.isEmpty()) list.addView(tv(if (cache) "Sin registros en caché; conecta para verificar." else "Todavía no hay mascotas registradas."))
+            else pets.forEach { list.addView(petCard(it, cache)) }
         })
     }
     private fun petCard(p: Pet, cache: Boolean) = card().apply {
@@ -156,40 +160,54 @@ class MainActivity : AppCompatActivity() {
         listeners.add(repo.observePets { pets, cache, error ->
             list.removeAllViews()
             if (error != null) list.addView(tv("Error: $error"))
-            else if (pets.isEmpty()) list.addView(tv("Todavía no hay mascotas registradas."))
+            else if (pets.isEmpty()) list.addView(tv(if (cache) "Sin registros en caché; conecta para verificar." else "Todavía no hay mascotas registradas."))
             else pets.forEach { list.addView(petCard(it, cache)) }
         })
     }
     private fun newPet() {
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
-        val name = field("Nombre"); c.addView(name)
+        val name = field("Nombre", 80); c.addView(name)
         val species = select(listOf("Perro", "Gato")); c.addView(tv("Especie")); c.addView(species)
-        val breed = field("Raza"); c.addView(breed)
+        val breed = field("Raza", 80); c.addView(breed)
         val sex = select(listOf("Hembra", "Macho", "No determinado")); c.addView(tv("Sexo")); c.addView(sex)
-        val age = field("Edad aproximada"); c.addView(age)
-        val color = field("Color"); c.addView(color)
+        val age = field("Edad aproximada", 40); c.addView(age)
+        val color = field("Color", 80); c.addView(color)
         val territory = select(TERRITORIES.map { it.label }); c.addView(tv("Comuna")); c.addView(territory)
         val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray); c.addView(message)
+        var saving = false
+        var formGeneration = 0
         c.addView(button("GUARDAR MASCOTA") {
+            if (saving) return@button
             if (name.text.isBlank() || breed.text.isBlank() || age.text.isBlank() || color.text.isBlank()) {
                 message.text = "Completa nombre, raza, edad y color."; return@button
             }
+            saving = true
             message.text = "Pendiente de sincronización…"
             repo.createPet(Pet(name = name.text.toString(), species = species.selectedItem.toString(),
                 breed = breed.text.toString(), sex = sex.selectedItem.toString(), age = age.text.toString(),
                 color = color.text.toString(), territoryId = TERRITORIES[territory.selectedItemPosition].id)) { error ->
-                if (error == null) { toast("Mascota confirmada por el servidor"); pets() }
-                else { message.text = "Falló el guardado: $error"; toast(message.text.toString()) }
+                if (error == null) {
+                    toast("Mascota confirmada por el servidor")
+                    if (screenGeneration == formGeneration) pets()
+                } else {
+                    saving = false
+                    if (screenGeneration == formGeneration) message.text = "Falló el guardado: $error"
+                    toast("Falló el guardado: $error")
+                }
             }
         })
         show(scroll(c))
+        formGeneration = screenGeneration
     }
     private fun petDetail(id: String) {
         val c = root(); c.addView(header("Detalle Mascota", "Ficha pública"))
         val body = root(); c.addView(body); show(scroll(c))
         listeners.add(repo.observePet(id) { p, cache, error ->
             body.removeAllViews()
-            if (error != null || p == null) { body.addView(tv(error ?: "No existe la mascota")); return@observePet }
+            if (error != null || p == null) {
+                body.addView(tv(error ?: if (cache) "Sin datos en caché; conecta para consultar." else "No existe la mascota"))
+                return@observePet
+            }
             val res = photoResource(p.photoKey)
             if (res != 0) body.addView(ImageView(this).apply {
                 setImageResource(res); scaleType = ImageView.ScaleType.CENTER_CROP
@@ -207,49 +225,67 @@ class MainActivity : AppCompatActivity() {
         val c = root(); c.addView(header("Reportes", "Propios o de funcionario · 30 más recientes"))
         c.addView(button("+ NUEVO REPORTE") { newReport() })
         val list = root(); c.addView(list); show(scroll(c))
+        val generation = screenGeneration
+        val requestedUid = repo.uid
         repo.role { role ->
-            val display: (List<Report>, Boolean, String?) -> Unit = { reports, cache, error ->
-                list.removeAllViews()
-                if (error != null) list.addView(tv("Error: $error"))
-                else if (reports.isEmpty()) list.addView(tv("Todavía no hay reportes visibles."))
-                else reports.forEach { r -> list.addView(card().apply {
-                    setOnClickListener { reportDetail(r.id) }
-                    addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 15f, true))
-                    addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray))
-                    addView(tv(state(r.pending, cache), 11f, false, teal))
-                }) }
+            if (generation == screenGeneration && requestedUid == repo.uid) {
+                val display: (List<Report>, Boolean, String?) -> Unit = { reports, cache, error ->
+                    list.removeAllViews()
+                    if (error != null) list.addView(tv("Error: $error"))
+                    else if (reports.isEmpty()) list.addView(tv(if (cache) "Sin reportes en caché; conecta para verificar." else "Todavía no hay reportes visibles."))
+                    else reports.forEach { r -> list.addView(card().apply {
+                        setOnClickListener { reportDetail(r.id) }
+                        addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 15f, true))
+                        addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray))
+                        addView(tv(state(r.pending, cache), 11f, false, teal))
+                    }) }
+                }
+                listeners.add(if (role == "staff") repo.observeStaffReports(display) else repo.observeMyReports(display))
             }
-            listeners.add(if (role == "staff") repo.observeStaffReports(display) else repo.observeMyReports(display))
         }
     }
     private fun newReport() {
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
         c.addView(tv("📷 Foto: función simulada. No se suben imágenes.", 12f, false, gray))
-        val name = field("Nombre de mascota (si se conoce)"); c.addView(name)
+        val name = field("Nombre de mascota (si se conoce)", 80); c.addView(name)
         val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); c.addView(tv("Tipo de reporte")); c.addView(type)
         val species = select(listOf("Perro", "Gato")); c.addView(tv("Especie")); c.addView(species)
         val territory = select(TERRITORIES.map { it.label }); c.addView(tv("Ubicación (comuna)")); c.addView(territory)
-        val desc = field("Describe lo que observaste").apply { minLines = 4; layoutParams.height = dp(110); gravity = Gravity.TOP }; c.addView(desc)
+        val desc = field("Describe lo que observaste", 2000).apply { minLines = 4; layoutParams.height = dp(110); gravity = Gravity.TOP }; c.addView(desc)
         c.addView(tv("No incluyas datos personales de terceros.", 11f, false, gray))
         val message = tv("", 12f, false, teal); c.addView(message)
+        var saving = false
+        var formGeneration = 0
         c.addView(button("ENVIAR REPORTE") {
+            if (saving) return@button
             if (desc.text.isBlank()) { message.text = "Escribe una descripción."; return@button }
+            saving = true
             message.text = "Pendiente de sincronización…"
             repo.createReport(Report(petName = name.text.toString(), type = type.selectedItem.toString(),
                 species = species.selectedItem.toString(), territoryId = TERRITORIES[territory.selectedItemPosition].id,
                 description = desc.text.toString())) { error ->
-                if (error == null) { toast("Reporte confirmado por el servidor"); reports() }
-                else { message.text = "Falló el envío: $error"; toast(message.text.toString()) }
+                if (error == null) {
+                    toast("Reporte confirmado por el servidor")
+                    if (screenGeneration == formGeneration) reports()
+                } else {
+                    saving = false
+                    if (screenGeneration == formGeneration) message.text = "Falló el envío: $error"
+                    toast("Falló el envío: $error")
+                }
             }
         })
         show(scroll(c))
+        formGeneration = screenGeneration
     }
     private fun reportDetail(id: String) {
         val c = root(); c.addView(header("Detalle del reporte", "Seguimiento"))
         val body = root(); c.addView(body); show(scroll(c))
         listeners.add(repo.observeReport(id) { r, cache, error ->
             body.removeAllViews()
-            if (error != null || r == null) { body.addView(tv(error ?: "No existe el reporte")); return@observeReport }
+            if (error != null || r == null) {
+                body.addView(tv(error ?: if (cache) "Sin datos en caché; conecta para consultar." else "No existe el reporte"))
+                return@observeReport
+            }
             body.addView(card().apply {
                 addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 20f, true))
                 addView(tv("Especie: ${r.species}\nComuna: ${territoryLabel(r.territoryId)}\nDescripción: ${r.description}\nEstado: ${r.status}\nFecha: ${date(r.createdAt)}"))
@@ -275,7 +311,11 @@ class MainActivity : AppCompatActivity() {
         val c = root(); c.addView(header("Perfil y ajustes", "Cuenta y sincronización"))
         val account = card(); account.addView(tv(repo.email, 16f, true))
         val role = tv("Consultando rol…", 12f, false, gray); account.addView(role); c.addView(account)
-        repo.role { role.text = "Rol: ${if (it == "staff") "Funcionario" else "Ciudadano"}" }
+        repo.role { role.text = when (it) {
+            "staff" -> "Rol: Funcionario"
+            "citizen" -> "Rol: Ciudadano"
+            else -> "Rol no disponible; conecta para verificar."
+        } }
         c.addView(card().apply {
             addView(tv("🔄 Datos y sincronización", 14f, true))
             addView(tv("Los registros indican pendiente, sincronizado o caché. Una escritura sin red sigue pendiente hasta que responda el servidor. $syncMessage", 12f, false, gray))

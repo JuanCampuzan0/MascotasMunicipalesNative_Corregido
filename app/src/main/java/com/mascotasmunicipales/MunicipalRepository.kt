@@ -40,21 +40,23 @@ class MunicipalRepository {
         }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo consultar el perfil") }
     }
 
-    fun role(done: (String) -> Unit) {
-        val id = uid ?: return done("citizen")
+    fun role(done: (String?) -> Unit) {
+        val id = uid ?: return done(null)
         db.collection("users").document(id).get().addOnSuccessListener {
-            done(it.getString("role") ?: "citizen")
-        }.addOnFailureListener { done("citizen") }
+            done(it.getString("role"))
+        }.addOnFailureListener { done(null) }
     }
 
     fun logout() = auth.signOut()
 
-    fun observePets(done: (List<Pet>, Boolean, String?) -> Unit): ListenerRegistration =
-        db.collection("pets").orderBy("createdAt", Query.Direction.DESCENDING).limit(30)
+    fun observePets(limit: Long = 30, done: (List<Pet>, Boolean, String?) -> Unit): ListenerRegistration {
+        require(limit in 1L..30L) { "El límite de mascotas debe estar entre 1 y 30" }
+        return db.collection("pets").orderBy("createdAt", Query.Direction.DESCENDING).limit(limit)
             .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) done(emptyList(), false, error.localizedMessage)
                 else if (snapshot != null) done(snapshot.documents.map(::pet), snapshot.metadata.isFromCache, null)
             }
+    }
 
     fun observeMyReports(done: (List<Report>, Boolean, String?) -> Unit): ListenerRegistration {
         val id = uid ?: error("Inicia sesión")

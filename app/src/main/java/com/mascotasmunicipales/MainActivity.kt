@@ -3,6 +3,8 @@ package com.mascotasmunicipales
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -12,6 +14,7 @@ import android.text.InputFilter
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import android.util.LruCache
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.activity.OnBackPressedCallback
@@ -52,6 +55,9 @@ class MainActivity : AppCompatActivity() {
     private var updateDraftUi: (() -> Unit)? = null
     private var updateAuthUi: ((SessionState) -> Unit)? = null
     private val work = WorkRepository()
+    private val photoCache = object : LruCache<Int, Bitmap>(4096) {
+        override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount / 1024
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -130,6 +136,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun clearListeners() { listeners.forEach { it.remove() }; listeners.clear() }
+    private fun setPhoto(view: ImageView, resource: Int) {
+        val bitmap = photoCache[resource] ?: BitmapFactory.decodeResource(resources, resource,
+            BitmapFactory.Options().apply { inSampleSize = 2 })?.also { photoCache.put(resource, it) }
+        if (bitmap != null) view.setImageBitmap(bitmap) else view.setImageResource(resource)
+    }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun tv(value: String, size: Float = 14f, bold: Boolean = false, color: Int = dark) = TextView(this).apply {
         text = value; textSize = size * textScale; setTextColor(color)
@@ -288,14 +299,14 @@ class MainActivity : AppCompatActivity() {
     }
     private fun bind(field: EditText, draft: Draft, key: String) {
         field.setText(draft.value(key)); field.isEnabled = !draft.locked
-        field.doAfterTextChanged { draft.set(key, it.toString()); model.draftEdited() }
+        field.doAfterTextChanged { if (draft.set(key, it.toString())) model.draftEdited() }
     }
     private fun bind(spinner: Spinner, draft: Draft, key: String, values: List<String>) {
         spinner.setSelection(values.indexOf(draft.value(key, values.first())).coerceAtLeast(0))
         spinner.isEnabled = !draft.locked
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                draft.set(key, values[position]); model.draftEdited()
+                if (draft.set(key, values[position])) model.draftEdited()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
@@ -349,7 +360,7 @@ class MainActivity : AppCompatActivity() {
         setOnClickListener { petDetail(p.id) }
         val res = photoResource(p.photoKey)
         if (res != 0) addView(ImageView(this@MainActivity).apply {
-            setImageResource(res); scaleType = ImageView.ScaleType.CENTER_CROP
+            setPhoto(this, res); scaleType = ImageView.ScaleType.CENTER_CROP
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(72), dp(72)))
         addView(LinearLayout(this@MainActivity).apply {
@@ -412,7 +423,7 @@ class MainActivity : AppCompatActivity() {
             }
             val res = photoResource(p.photoKey)
             if (res != 0) body.addView(ImageView(this).apply {
-                setImageResource(res); scaleType = ImageView.ScaleType.CENTER_CROP
+                setPhoto(this, res); scaleType = ImageView.ScaleType.CENTER_CROP
                 contentDescription = "Fotografía ilustrativa de ${p.name}"
             }, LinearLayout.LayoutParams(-1, dp(190)))
             body.addView(card().apply {

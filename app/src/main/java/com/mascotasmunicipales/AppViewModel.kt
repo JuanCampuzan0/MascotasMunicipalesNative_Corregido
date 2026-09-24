@@ -25,6 +25,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var root = JSONObject()
     private var authenticating = false
     private var generation = 0
+    private var dirty = false
     private val handler = Handler(Looper.getMainLooper())
     private val saveDraft = Runnable { flush() }
     private val watches = mutableMapOf<String, ListenerRegistration>()
@@ -37,11 +38,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val workDrafts = mutableMapOf<String, MutableMap<String, String>>()
     var tab: Int
         get() = root.optInt("tab", 0)
-        set(value) { root.put("tab", value) }
+        set(value) {
+            if (root.optInt("tab", 0) != value) {
+                root.put("tab", value)
+                dirty = true
+            }
+        }
     val screen: String get() = root.optString("screen", "home")
     var previousScreen: String
         get() = root.optString("previous", "home")
-        set(value) { root.put("previous", value) }
+        set(value) {
+            if (root.optString("previous", "home") != value) {
+                root.put("previous", value)
+                dirty = true
+            }
+        }
     val ready: Boolean get() = sessionValue.value?.phase == "ready"
     private val authListener = FirebaseAuth.AuthStateListener {
         if (!authenticating) acceptSession()
@@ -73,7 +84,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             flush()
             generation++
             watches.values.forEach { it.remove() }; watches.clear(); activeWrites.clear()
-            account = uid; store = null; root = JSONObject(); storageError = ""
+            account = uid; store = null; root = JSONObject(); storageError = ""; dirty = false
             petDraft = Draft(); reportDraft = Draft()
             if (uid != null) {
                 store = DraftStore(getApplication(), uid)
@@ -107,20 +118,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() { requestedWorkspace = "citizen"; flush(); repo.logout() }
 
-    fun navigate(route: String) { root.put("screen", route); flush() }
+    fun navigate(route: String) {
+        if (screen != route) {
+            root.put("screen", route)
+            dirty = true
+        }
+        flush()
+    }
     fun draft(kind: String) = if (kind == "pet") petDraft else reportDraft
     fun draftEdited() {
+        dirty = true
         handler.removeCallbacks(saveDraft)
-        handler.postDelayed(saveDraft, 250)
+        handler.postDelayed(saveDraft, 400)
     }
 
     fun flush(): Boolean {
         handler.removeCallbacks(saveDraft)
         val target = store ?: return true
         if (storageError.isNotEmpty()) return false
+        if (!dirty) return true
         return try {
             root.put("pet", petDraft.json).put("report", reportDraft.json)
-            target.write(root); true
+            target.write(root)
+            dirty = false
+            true
         } catch (_: Exception) {
             storageError = "No se pudo guardar el borrador en este dispositivo. El envío está bloqueado para evitar duplicados."
             changedValue.value = (changedValue.value ?: 0) + 1
@@ -132,6 +153,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (draft(kind).status != "confirmed") return
         watches.remove(kind)?.remove()
         if (kind == "pet") petDraft = Draft() else reportDraft = Draft()
+        dirty = true
         flush(); changed()
     }
 
@@ -140,6 +162,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (!ready || d.status in listOf("pending", "confirmed") || storageError.isNotEmpty()) return
         if (d.id.isEmpty()) d.id = UUID.randomUUID().toString().replace("-", "")
         d.status = "pending"; d.error = ""
+        dirty = true
         // El ID y el contenido quedan en disco ANTES de encolar la escritura de Firestore.
         if (!flush()) { d.status = "failed"; changed(); return }
         val uid = account; val id = d.id; val requestGeneration = generation
@@ -198,6 +221,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val d = draft(kind)
         if (d.status == status && d.error == error) return
         d.status = status; d.error = error
+        dirty = true
         if (status == "confirmed") watches.remove(kind)?.remove()
         flush(); changed()
     }

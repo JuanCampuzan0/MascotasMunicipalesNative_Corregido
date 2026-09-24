@@ -39,5 +39,9 @@ class Draft(val json: JSONObject = JSONObject()) {
         set(value) { json.put("error", value) }
     val locked: Boolean get() = id.isNotEmpty()
     fun value(key: String, default: String = "") = json.optString("field:$key", default)
-    fun set(key: String, value: String) { if (!locked) json.put("field:$key", value) }
+    fun set(key: String, newValue: String): Boolean {
+        if (locked || value(key) == newValue) return false
+        json.put("field:$key", newValue)
+        return true
+    }
 }

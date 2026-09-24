@@ -1,7 +1,7 @@
 import { test, before, beforeEach, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
-import { collection, doc, deleteDoc, getDoc, getDocs, limit, orderBy, query, setDoc, updateDoc, where, serverTimestamp } from "firebase/firestore";
+import { collection, doc, deleteDoc, getDoc, getDocs, limit, orderBy, query, setDoc, updateDoc, where, serverTimestamp, writeBatch } from "firebase/firestore";
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
 if (!projectId) throw new Error("Defina FIREBASE_PROJECT_ID con el proyecto real antes de probar.");
@@ -23,6 +23,14 @@ beforeEach(async () => {
     await setDoc(doc(db, "users/alice"), { email: "alice@example.invalid", role: "citizen" });
     await setDoc(doc(db, "users/bob"), { email: "bob@example.invalid", role: "citizen" });
     await setDoc(doc(db, "users/staff"), { email: "staff@example.invalid", role: "staff" });
+    for (const [uid, role, departmentId, active] of [
+      ["staff", "admin", "zipaquira-bienestar-animal", true],
+      ["vet", "vet", "zipaquira-bienestar-animal", true],
+      ["vet2", "vet", "zipaquira-bienestar-animal", true],
+      ["revoked", "vet", "zipaquira-bienestar-animal", false],
+      ["outside", "admin", "other-department", true],
+      ["outsidevet", "vet", "other-department", true]])
+      await setDoc(doc(db, `access/${uid}`), {role, departmentId, active, displayName: "Cuenta ficticia"});
     await setDoc(doc(db, "reports/owned"), {
       ownerId: "alice", petId: "", petName: "Toby", type: "Pérdida", species: "Perro",
       territoryId: "comuna-1", description: "Perro ficticio", status: "Abierto",
@@ -37,6 +45,122 @@ beforeEach(async () => {
 });
 after(async () => { if (env) await env.cleanup(); });
 const db = uid => uid ? env.authenticatedContext(uid, {email: `${uid}@example.invalid`}).firestore() : env.unauthenticatedContext().firestore();
+
+const departmentId = 'zipaquira-bienestar-animal';
+const caseData = () => ({reportId:'owned',ownerId:'alice',petId:'',petName:'Toby',species:'Perro',territoryId:'comuna-1',
+  departmentId,vetId:'',status:'Revisado',outcome:'',lastRecordId:'',version:1,updatedBy:'staff',
+  createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+async function review(uid='staff', overrides={}) {
+  const f=db(uid), b=writeBatch(f), data={...caseData(),...overrides};
+  b.set(doc(f,'cases/owned'),data);
+  b.set(doc(f,'cases/owned/history/1'),{actorId:uid,status:data.status,version:1,vetId:data.vetId,createdAt:serverTimestamp()});
+  return b.commit();
+}
+async function change(uid, version, status, extras={}, note=null) {
+  const f=db(uid), b=writeBatch(f);
+  const previous = await getDoc(doc(db('staff'),'cases/owned'));
+  b.update(doc(f,'cases/owned'),{status,version,updatedBy:uid,updatedAt:serverTimestamp(),...extras});
+  b.set(doc(f,`cases/owned/history/${version}`),{actorId:uid,status,version,vetId:extras.vetId ?? previous.data().vetId,createdAt:serverTimestamp()});
+  if(note) b.set(doc(f,`cases/owned/clinicalRecords/${extras.lastRecordId}`),{
+    authorId:uid,examination:'Valoración ficticia',care:'Atención ficticia',followUp:'Revisión ficticia',createdAt:serverTimestamp(),...note});
+  if(status==='Cerrado') b.update(doc(f,'reports/owned'),{status,updatedAt:serverTimestamp()});
+  return b.commit();
+}
+async function assigned() { await review(); await change('staff',2,'Asignado',{vetId:'vet'}); }
+
+test('flujo completo: revisión, asignación, atención inmutable, corrección y cierre', async()=>{
+  await assertSucceeds(review());
+  await assertSucceeds(change('staff',2,'Asignado',{vetId:'vet'}));
+  await assertSucceeds(change('vet',3,'Atendido',{lastRecordId:'note1'},{}));
+  await assertSucceeds(change('vet',4,'Atendido',{lastRecordId:'note2'},{care:'Corrección de la entrada note1'}));
+  await assertSucceeds(change('staff',5,'Cerrado',{outcome:'Caso ficticio atendido'}));
+  const result=await assertSucceeds(getDoc(doc(db('alice'),'cases/owned')));
+  if(result.data().outcome!=='Caso ficticio atendido') throw Error('Resultado no persistido');
+  await assertFails(change('vet',6,'Atendido',{lastRecordId:'late'},{}));
+  await assertFails(updateDoc(doc(db('vet'),'cases/owned/clinicalRecords/note1'),{care:'Sobrescribir'}));
+  await assertFails(deleteDoc(doc(db('staff'),'cases/owned/history/1')));
+});
+test('caso sin atención puede cerrarse; no se cierra asignado sin atención', async()=>{
+  await review(); await assertSucceeds(change('staff',2,'Cerrado',{outcome:'Sin intervención veterinaria necesaria'}));
+});
+test('aislamiento clínico: ni ciudadano, administrador, otro vet o anónimo', async()=>{
+  await assigned(); await change('vet',3,'Atendido',{lastRecordId:'note1'},{});
+  for(const uid of [null,'alice','bob','staff','vet2','outsidevet']) {
+    await assertFails(getDoc(doc(db(uid),'cases/owned/clinicalRecords/note1')));
+    await assertFails(getDocs(query(collection(db(uid),'cases/owned/clinicalRecords'),limit(20))));
+  }
+  await assertSucceeds(getDoc(doc(db('vet'),'cases/owned/clinicalRecords/note1')));
+  await assertSucceeds(getDocs(query(collection(db('vet'),'cases/owned/clinicalRecords'),orderBy('createdAt','desc'),limit(20))));
+  await assertFails(getDoc(doc(db('staff'),'users/alice')));
+  await assertFails(getDoc(doc(db('vet'),'reports/owned')));
+});
+test('se rechazan roles autoasignados, rol legacy y acceso de otra dependencia', async()=>{
+  for(const uid of ['alice','vet','staff']) {
+    await assertFails(setDoc(doc(db(uid),`access/${uid}`),{role:'admin',departmentId,active:true}));
+    await assertFails(updateDoc(doc(db(uid),'access/vet2'),{active:true}));
+  }
+  for(const uid of ['alice','vet','outside']) await assertFails(review(uid));
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'users/legacy'),{role:'staff'}));
+  await assertFails(getDoc(doc(db('legacy'),'reports/owned')));
+  await assertFails(getDoc(doc(db('outside'),'reports/owned')));
+});
+test('asignación exige vet activo de la misma dependencia y evita transiciones inválidas', async()=>{
+  await review();
+  for(const vetId of ['alice','staff','revoked','outsidevet','missing'])
+    await assertFails(change('staff',2,'Asignado',{vetId}));
+  await assertSucceeds(change('staff',2,'Asignado',{vetId:'vet'}));
+  await assertFails(change('staff',3,'Cerrado',{outcome:'Cerrar antes de atender'}));
+  await assertFails(change('vet2',3,'Atendido',{lastRecordId:'fake'},{}));
+  await assertFails(change('staff',3,'Atendido',{lastRecordId:'fake'},{}));
+  await assertFails(change('alice',3,'Cerrado',{outcome:'Falso'}));
+});
+test('revocación bloquea lecturas y escrituras; reasignación retira acceso anterior', async()=>{
+  await assigned();
+  await assertSucceeds(getDoc(doc(db('vet'),'cases/owned')));
+  await change('staff',3,'Asignado',{vetId:'vet2'});
+  await assertFails(getDoc(doc(db('vet'),'cases/owned')));
+  await assertFails(change('vet',4,'Atendido',{lastRecordId:'old'},{}));
+  await env.withSecurityRulesDisabled(c=>updateDoc(doc(c.firestore(),'access/vet2'),{active:false}));
+  await assertFails(getDoc(doc(db('vet2'),'cases/owned')));
+  await assertFails(change('vet2',4,'Atendido',{lastRecordId:'revoked'},{}));
+});
+test('propiedad, integridad, historia y concurrencia del caso', async()=>{
+  await assertFails(review('staff',{ownerId:'bob'}));
+  await assertFails(review('staff',{petId:'public'}));
+  await assertFails(review('staff',{extra:'dato'}));
+  await assertFails(setDoc(doc(db('staff'),'cases/owned'),caseData()));
+  await assigned();
+  await assertFails(change('staff',2,'Asignado',{vetId:'vet2'}));
+  await assertFails(change('vet',3,'Atendido',{lastRecordId:'missing'}));
+  await assertFails(change('vet',3,'Atendido',{lastRecordId:'extra'},{contact:'dato privado extra'}));
+  await assertFails(change('vet',3,'Atendido',{lastRecordId:'empty'},{care:''}));
+  await assertFails(change('vet',3,'Atendido',{lastRecordId:'long'},{followUp:'x'.repeat(1001)}));
+  await assertFails(getDoc(doc(db('bob'),'cases/owned')));
+  await assertFails(getDoc(doc(db('outside'),'cases/owned')));
+  await assertSucceeds(getDoc(doc(db('alice'),'cases/owned')));
+});
+test('consultas profesionales limitadas y filtradas por asignación/dependencia', async()=>{
+  await assigned();
+  await assertSucceeds(getDocs(query(collection(db('staff'),'cases'),where('departmentId','==',departmentId),orderBy('updatedAt','desc'),limit(20))));
+  await assertSucceeds(getDocs(query(collection(db('vet'),'cases'),where('departmentId','==',departmentId),where('vetId','==','vet'),orderBy('updatedAt','desc'),limit(20))));
+  await assertFails(getDocs(query(collection(db('vet'),'cases'),where('departmentId','==',departmentId),limit(20))));
+  await assertFails(getDocs(query(collection(db('staff'),'cases'),where('departmentId','==',departmentId),limit(21))));
+  await assertSucceeds(getDocs(query(collection(db('staff'),'access'),where('departmentId','==',departmentId),where('role','==','vet'),orderBy('__name__'),limit(20))));
+  await assertFails(getDocs(query(collection(db('vet'),'access'),limit(20))));
+  await assertFails(getDocs(query(collection(db('staff'),'access'),limit(20))));
+});
+test('un reporte no puede vincular una mascota ajena', async()=>{
+  await assertFails(setDoc(doc(db('bob'),'reports/forged-pet'),{...validReport('bob'),petId:'public'}));
+  await assertSucceeds(setDoc(doc(db('alice'),'reports/own-pet'),{...validReport(),petId:'public'}));
+});
+test('administrador municipal tampoco lee un caso de otra dependencia', async()=>{
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'cases/foreign'),{
+    ...caseData(), reportId:'foreign', ownerId:'bob', departmentId:'other-department'
+  }));
+  await assertFails(getDoc(doc(db('staff'),'cases/foreign')));
+  await assertFails(getDoc(doc(db('vet'),'cases/foreign')));
+  await assertSucceeds(getDoc(doc(db('alice'),'cases/owned'))); // Todavía no existe; permite consultar seguimiento propio.
+});
 
 test("lectura pública de mascota, datos privados aislados", async () => {
   await assertSucceeds(getDoc(doc(db(), "pets/public")));
@@ -155,7 +279,7 @@ test("fechas de creación y actualización requieren hora del servidor", async (
 
 test("funcionario modifica datos permitidos pero no crea otros privilegios", async () => {
   await assertSucceeds(updateDoc(doc(db("staff"), "pets/public"), {status: "En custodia", updatedAt: serverTimestamp()}));
-  await assertSucceeds(updateDoc(doc(db("staff"), "reports/owned"), {status: "Cerrado", updatedAt: serverTimestamp()}));
+  await assertFails(updateDoc(doc(db("staff"), "reports/owned"), {status: "Cerrado", updatedAt: serverTimestamp()})); // Cierre exige caso e historial atómicos.
   await assertFails(updateDoc(doc(db("staff"), "users/bob"), {role: "staff"}));
   await assertFails(updateDoc(doc(db("staff"), "reports/owned"), {description: "Cambio", updatedAt: serverTimestamp()}));
 });
@@ -173,7 +297,7 @@ test("consultas sin límite o superiores a lo autorizado fallan", async () => {
   await assertFails(getDocs(query(collection(db("alice"), "reports"), where("ownerId", "==", "alice"), limit(1001))));
   await assertFails(getDocs(query(collection(db("staff"), "users"), limit(31))));
   await assertFails(getDocs(query(collection(db("alice"), "users"), limit(1))));
-  await assertSucceeds(getDocs(query(collection(db("staff"), "users"), limit(30))));
+  await assertFails(getDocs(query(collection(db("staff"), "users"), limit(30))));
 });
 
 test("borrados y rutas administrativas denegados por defecto", async () => {

@@ -45,13 +45,6 @@ class MunicipalRepository {
         }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo consultar el perfil") }
     }
 
-    fun role(done: (String?) -> Unit) {
-        val id = uid ?: return done(null)
-        db.collection("users").document(id).get().addOnSuccessListener {
-            done(it.getString("role"))
-        }.addOnFailureListener { done(null) }
-    }
-
     fun logout() = auth.signOut()
 
     fun observePets(limit: Long = 30, done: (List<Pet>, Boolean, String?) -> Unit): ListenerRegistration {
@@ -72,13 +65,6 @@ class MunicipalRepository {
                 else if (snapshot != null) done(snapshot.documents.map(::report), snapshot.metadata.isFromCache, null)
             }
     }
-
-    fun observeStaffReports(done: (List<Report>, Boolean, String?) -> Unit): ListenerRegistration =
-        db.collection("reports").orderBy("createdAt", Query.Direction.DESCENDING).limit(30)
-            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
-                if (error != null) done(emptyList(), false, error.localizedMessage)
-                else if (snapshot != null) done(snapshot.documents.map(::report), snapshot.metadata.isFromCache, null)
-            }
 
     fun observePet(id: String, done: (Pet?, Boolean, String?) -> Unit): ListenerRegistration =
         db.collection("pets").document(id).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->

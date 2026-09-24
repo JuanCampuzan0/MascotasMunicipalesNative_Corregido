@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var syncMessage = ""
     private var updateDraftUi: (() -> Unit)? = null
     private var updateAuthUi: ((SessionState) -> Unit)? = null
+    private val work = WorkRepository()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,6 +115,8 @@ class MainActivity : AppCompatActivity() {
     private fun renderRoute(route: String) {
         if (!model.ready) return
         when {
+            route == "work" -> workHome()
+            route.startsWith("workcase:") -> workCase(route.removePrefix("workcase:"))
             route == "accessibility" -> accessibilityScreen()
             route == "newPet" -> newPet()
             route == "newReport" -> newReport()
@@ -258,8 +261,17 @@ class MainActivity : AppCompatActivity() {
             inputType = 129; isSaveEnabled = false
         }; c.addView(password)
         val message = tv("", 12f, false, gray); c.addView(message)
-        val login = button("INGRESAR") { model.authenticate(email.text.toString(), password.text.toString(), false) }
-        val register = button("CREAR CUENTA") { model.authenticate(email.text.toString(), password.text.toString(), true) }
+        val workspace = select(listOf("Ciudadano", "Veterinario", "Administrador de la dependencia"))
+        c.addView(spinnerLabel("Ingresar como", workspace)); c.addView(workspace)
+        c.addView(tv("Elegir una opción no concede permisos. Las cuentas profesionales requieren aprobación.", 12f))
+        val login = button("INGRESAR") {
+            model.requestedWorkspace = listOf("citizen", "vet", "admin")[workspace.selectedItemPosition]
+            model.authenticate(email.text.toString(), password.text.toString(), false)
+        }
+        val register = button("CREAR CUENTA CIUDADANA") {
+            model.requestedWorkspace = "citizen"
+            model.authenticate(email.text.toString(), password.text.toString(), true)
+        }
         c.addView(login); c.addView(register)
         val accessibility = button("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
         c.addView(accessibility)
@@ -269,6 +281,7 @@ class MainActivity : AppCompatActivity() {
             val busy = session.phase == "authenticating"
             login.isEnabled = !busy; register.isEnabled = !busy; accessibility.isEnabled = !busy
             email.isEnabled = !busy; password.isEnabled = !busy
+            workspace.isEnabled = !busy
             message.text = session.message.ifBlank { "Ingresa con tu correo y contraseña." }
         }
         updateAuthUi?.invoke(model.session.value ?: SessionState("signedOut"))
@@ -319,7 +332,8 @@ class MainActivity : AppCompatActivity() {
         repo.activeReportCount { count, _ -> reportsNumber.text = count?.toString() ?: "Sin conexión" }
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
-        c.addView(heading("Registros recientes · máximo 30", 15f))
+        c.addView(button("ACCESO PROFESIONAL") { workHome() })
+        c.addView(heading("Registros recientes · máximo 3", 15f))
         val list = root(); c.addView(list)
         show(scroll(c))
         listeners.add(repo.observePets(3) { pets, cache, error ->
@@ -412,12 +426,12 @@ class MainActivity : AppCompatActivity() {
     }
     private fun reports() {
         remember("reports", 1)
-        val c = root(); c.addView(header("Reportes", "Propios o de funcionario · 30 más recientes"))
+        val c = root(); c.addView(header("Mis reportes", "30 más recientes"))
         c.addView(button("+ NUEVO REPORTE") { newReport() })
         val list = root(); c.addView(list); show(scroll(c))
         val generation = screenGeneration
         val requestedUid = repo.uid
-        repo.role { role ->
+        run {
             if (generation == screenGeneration && requestedUid == repo.uid) {
                 val display: (List<Report>, Boolean, String?) -> Unit = { reports, cache, error ->
                     list.removeAllViews()
@@ -439,7 +453,7 @@ class MainActivity : AppCompatActivity() {
                         })
                     }) }
                 }
-                listeners.add(if (role == "staff") repo.observeStaffReports(display) else repo.observeMyReports(display))
+                listeners.add(repo.observeMyReports(display))
             }
         }
     }
@@ -494,6 +508,7 @@ class MainActivity : AppCompatActivity() {
                 }
             })
             body.addView(button("← VOLVER") { reports() })
+            body.addView(button("VER SEGUIMIENTO DEL CASO") { citizenCase(id) })
         })
     }
     private fun territory() {
@@ -503,6 +518,173 @@ class MainActivity : AppCompatActivity() {
         TERRITORIES.forEach { c.addView(card().apply { addView(tv(it.label, 14f, true)) }) }
         show(scroll(c))
     }
+    private fun workHome() {
+        remember("work", 4)
+        val c = root(); c.addView(header("Acceso profesional", "Dependencia municipal · Zipaquirá"))
+        val message = tv("Verificando permisos con el servidor…"); c.addView(message)
+        c.addView(button("VOLVER A INICIO") { model.requestedWorkspace = "citizen"; home() })
+        show(scroll(c))
+        val generation = screenGeneration; val account = repo.uid
+        work.access { access, error ->
+            if (generation != screenGeneration || account != repo.uid) return@access
+            if (access == null) { message.text = error; return@access }
+            if (model.requestedWorkspace != "citizen" && model.requestedWorkspace != access.role) {
+                message.text = "La cuenta no tiene el rol elegido. Tu acceso aprobado es ${if (access.role == "vet") "Veterinario" else "Administrador"}."
+                c.addView(button("ABRIR MI ACCESO APROBADO") { model.requestedWorkspace = access.role; workHome() })
+                return@access
+            }
+            message.text = if (access.role == "admin") "Administrador de la dependencia" else "Veterinario"
+            c.addView(tv("Estas operaciones requieren conexión. Solo se confirma un cambio cuando responde el servidor. Usa únicamente datos ficticios.", 12f))
+            if (access.role == "admin") {
+                c.addView(button("REVISAR REPORTES") { workList("reports", access) })
+                c.addView(button("EQUIPO VETERINARIO") { workList("access", access) })
+            }
+            c.addView(button(if (access.role == "admin") "CASOS DE LA DEPENDENCIA" else "MIS CASOS Y SEGUIMIENTOS") { workList("cases", access) })
+        }
+    }
+
+    private fun workList(kind: String, access: WorkAccess, cursor: com.google.firebase.firestore.DocumentSnapshot? = null) {
+        remember("work", 4)
+        val title = when (kind) { "reports" -> "Reportes para revisión"; "access" -> "Equipo veterinario"; else -> "Casos y seguimientos" }
+        val c = root(); c.addView(header(title, "20 por página · lectura del servidor"))
+        c.addView(button("VOLVER AL PANEL") { workHome() })
+        val message = tv("Cargando…"); c.addView(message); show(scroll(c))
+        val generation = screenGeneration; val account = repo.uid
+        work.page(kind, access, cursor) { docs, error ->
+            if (generation != screenGeneration || account != repo.uid) return@page
+            message.text = error ?: if (docs.isNullOrEmpty()) "No hay más registros." else "${docs.size} registros en esta página."
+            docs.orEmpty().forEach { doc ->
+                c.addView(card().apply {
+                    if (kind == "access") {
+                        addView(tv(doc.getString("displayName") ?: "Veterinario de demostración", 16f, true))
+                        addView(tv("UID: ${doc.id}\n${if (doc.getBoolean("active") == true) "Activo" else "Suspendido"}").apply { setTextIsSelectable(true) })
+                        addView(tv("Aprobaciones y revocaciones: responsable de Firebase, mediante procedimiento documentado.", 12f))
+                    } else {
+                        addView(tv(doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }, 16f, true))
+                        addView(tv("${doc.getString("status")} · ${date(doc.getTimestamp("updatedAt"))}"))
+                        if (kind == "reports") {
+                            addView(tv("${doc.getString("type")} · ${doc.getString("species")}\n${territoryLabel(doc.getString("territoryId").orEmpty())}\n${doc.getString("description")}"))
+                            val result = tv(""); addView(result)
+                            lateinit var review: Button
+                            review = button("REVISAR / ABRIR CASO") {
+                                review.isEnabled = false; result.text = "Esperando confirmación…"
+                                work.review(doc.id) { failure ->
+                                    if (generation == screenGeneration && account == repo.uid) {
+                                        review.isEnabled = true
+                                        if (failure == null) workCase(doc.id) else result.text = "No confirmado: $failure"
+                                    }
+                                }
+                            }
+                            addView(review)
+                        } else addView(button("ABRIR CASO") { workCase(doc.id) })
+                    }
+                })
+            }
+            if (docs?.size == 20) c.addView(button("SIGUIENTE PÁGINA") { workList(kind, access, docs.last()) })
+            c.addView(button("ACTUALIZAR DESDE EL INICIO") { workList(kind, access) })
+        }
+    }
+
+    private fun workCase(id: String) {
+        remember("workcase:$id", 4)
+        val c = root(); c.addView(header("Caso municipal", "Información operativa · datos ficticios"))
+        val message = tv("Comprobando acceso y versión…"); c.addView(message)
+        c.addView(button("VOLVER AL PANEL") { workHome() }); show(scroll(c))
+        val generation = screenGeneration; val account = repo.uid
+        fun current() = generation == screenGeneration && account == repo.uid
+        work.access { access, error ->
+            if (!current()) return@access
+            if (access == null) { message.text = error; return@access }
+            work.getCase(id) caseResult@ { doc, failure ->
+                if (!current()) return@caseResult
+                if (doc == null) { message.text = failure ?: "No existe el caso."; return@caseResult }
+                val status = doc.getString("status").orEmpty()
+                val version = doc.getLong("version") ?: 0
+                message.text = "${doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }} · ${doc.getString("species")}\nEstado: $status\n${territoryLabel(doc.getString("territoryId").orEmpty())}\nVeterinario: ${doc.getString("vetId").orEmpty().ifBlank { "Sin asignar" }}\nResultado para el ciudadano: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}"
+                val petId = doc.getString("petId").orEmpty()
+                if (petId.isNotBlank()) c.addView(button("VER FICHA PÚBLICA DE LA MASCOTA") { petDetail(petId) })
+                c.addView(button("ACTUALIZAR CASO") { workCase(id) })
+                val result = tv(""); c.addView(result)
+                var busy = false
+                fun submit(next: String, vetId: String = "", outcome: String = "", examination: String = "", care: String = "", followUp: String = "") {
+                    if (busy) return
+                    busy = true; result.text = "Esperando confirmación del servidor…"
+                    work.change(id, version, next, vetId, outcome, examination, care, followUp) { e ->
+                        if (current()) {
+                            busy = false
+                            if (e == null) { model.workDrafts.remove(id); toast("Cambio confirmado por el servidor"); workCase(id) }
+                            else result.text = "No confirmado: $e. Actualiza para comprobar el estado antes de reintentar."
+                        }
+                    }
+                }
+                if (access.role == "admin") {
+                    if (status in listOf("Revisado", "Asignado")) {
+                        val vet = field("UID del veterinario aprobado", 128); c.addView(vet)
+                        c.addView(tv("Copia el UID del menú Equipo veterinario. Se valida su rol, dependencia y estado activo.", 12f))
+                        c.addView(button("ASIGNAR VETERINARIO") {
+                            if (vet.text.isBlank()) result.text = "Escribe el UID del veterinario." else submit("Asignado", vetId = vet.text.toString())
+                        })
+                    }
+                    if (status in listOf("Revisado", "Atendido")) {
+                        val outcome = field("Resultado para el ciudadano, sin datos clínicos ni contactos", 1000); c.addView(outcome)
+                        c.addView(button("CERRAR CASO Y REPORTE") {
+                            if (outcome.text.isBlank()) result.text = "Escribe el resultado." else submit("Cerrado", outcome = outcome.text.toString())
+                        })
+                    }
+                    c.addView(tv("La historia clínica está reservada al veterinario asignado.", 12f))
+                } else if (doc.getString("vetId") == account) {
+                    if (status in listOf("Asignado", "Atendido")) {
+                        val values = model.workDrafts.getOrPut(id) { mutableMapOf() }
+                        fun clinicalField(key: String, label: String, max: Int): EditText {
+                            c.addView(tv(label, 14f, true))
+                            return field(label, max).apply {
+                                setText(values[key].orEmpty()); doAfterTextChanged { values[key] = it.toString() }
+                                c.addView(this)
+                            }
+                        }
+                        c.addView(tv("Borrador temporal: se conserva al girar la pantalla, pero no al cerrar el proceso. Cada envío es definitivo; corrige mediante una nueva entrada.", 12f))
+                        val exam = clinicalField("examination", "Valoración / motivo", 2000)
+                        val care = clinicalField("care", "Atención realizada", 2000)
+                        val follow = clinicalField("followUp", "Seguimiento recomendado", 1000)
+                        c.addView(button("GUARDAR ATENCIÓN DEFINITIVA") {
+                            if (exam.text.isBlank() || care.text.isBlank()) result.text = "Completa valoración y atención."
+                            else submit("Atendido", examination = exam.text.toString(), care = care.text.toString(), followUp = follow.text.toString())
+                        })
+                    }
+                    c.addView(heading("Atenciones registradas · privadas"))
+                    fun records(cursor: com.google.firebase.firestore.DocumentSnapshot? = null) {
+                        work.records(id, cursor) { notes, noteError ->
+                            if (current()) {
+                                if (noteError != null) c.addView(tv("No se pudieron leer las atenciones: $noteError"))
+                                notes.orEmpty().forEach { n -> c.addView(card().apply {
+                                    addView(tv("${date(n.getTimestamp("createdAt"))}\nValoración: ${n.getString("examination")}\nAtención: ${n.getString("care")}\nSeguimiento: ${n.getString("followUp")}"))
+                                }) }
+                                if (notes?.size == 20) {
+                                    lateinit var more: Button
+                                    more = button("MÁS ATENCIONES") { more.isEnabled = false; records(notes.last()) }; c.addView(more)
+                                }
+                            }
+                        }
+                    }
+                    records()
+                }
+            }
+        }
+    }
+
+    private fun citizenCase(id: String) {
+        remember("report:$id", 1)
+        val c = root(); c.addView(header("Seguimiento municipal"))
+        val message = tv("Consultando servidor…"); c.addView(message)
+        c.addView(button("VOLVER AL REPORTE") { reportDetail(id) }); show(scroll(c))
+        val generation = screenGeneration; val account = repo.uid
+        work.getCase(id) { doc, error ->
+            if (generation == screenGeneration && account == repo.uid) message.text = error ?: if (doc == null)
+                "Tu reporte todavía no tiene un caso municipal."
+            else "Estado: ${doc.getString("status")}\nResultado: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}\nActualizado: ${date(doc.getTimestamp("updatedAt"))}"
+        }
+    }
+
     private fun upcomingOption(title: String, detail: String = "") = card().apply {
         addView(tv(title, 15f, true))
         if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
@@ -574,6 +756,7 @@ class MainActivity : AppCompatActivity() {
             })
         })
         c.addView(upcomingOption("Información de la aplicación"))
+        c.addView(button("ACCESO PROFESIONAL") { workHome() })
         c.addView(upcomingOption("Información de tu cuenta"))
         c.addView(upcomingOption("Cambiar correo electrónico"))
         c.addView(upcomingOption("Cambiar contraseña"))

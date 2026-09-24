@@ -33,6 +33,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var petDraft = Draft(); private set
     var reportDraft = Draft(); private set
     var storageError = ""; private set
+    var requestedWorkspace = "citizen"
+    val workDrafts = mutableMapOf<String, MutableMap<String, String>>()
     var tab: Int
         get() = root.optInt("tab", 0)
         set(value) { root.put("tab", value) }
@@ -67,6 +69,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val uid = repo.uid
         if (uid == account && sessionValue.value?.phase in listOf("ready", "preparing", "profileError")) return
         if (uid != account) {
+            workDrafts.clear()
             flush()
             generation++
             watches.values.forEach { it.remove() }; watches.clear(); activeWrites.clear()
@@ -95,13 +98,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (error != null) sessionValue.value = SessionState("profileError", "No se pudo preparar tu perfil: $error")
                 else {
                     recover("pet"); recover("report")
+                    if (requestedWorkspace != "citizen") navigate("work")
                     sessionValue.value = SessionState("ready")
                 }
             }
         }
     }
 
-    fun logout() { flush(); repo.logout() }
+    fun logout() { requestedWorkspace = "citizen"; flush(); repo.logout() }
 
     fun navigate(route: String) { root.put("screen", route); flush() }
     fun draft(kind: String) = if (kind == "pet") petDraft else reportDraft

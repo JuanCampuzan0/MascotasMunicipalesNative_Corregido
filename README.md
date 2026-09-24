@@ -2,7 +2,13 @@
 
 Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración incluidas en `drawable-nodpi`.
 
-## Versión 1.2: recuperación y sesión
+## Versión 1.3: roles y primer flujo municipal
+
+Implementa ingreso por rol, revisión y asignación administrativa, atenciones veterinarias privadas, cierre atómico y seguimiento ciudadano. Consulte **[ROLES.md](ROLES.md)** para permisos, procedimiento de aprobación, conexión, índices y límites de esta primera etapa.
+
+**Pendiente de despliegue:** las nuevas reglas e índices incluidos en esta versión todavía NO se han publicado en Firebase remoto. El acceso profesional requiere ese despliegue autorizado y documentos `access/{uid}` aprobados manualmente. Los permisos antiguos `users.role = staff` no conceden acceso con estas reglas.
+
+## Recuperación y sesión (incluidas desde 1.2)
 
 - `AppViewModel` conserva la sesión y las operaciones fuera de `MainActivity`. El ingreso tiene una sola transición a la aplicación, desactiva envíos repetidos y muestra errores de preparación del perfil con **Reintentar perfil**. La creación del perfil usa una transacción para tolerar el ingreso simultáneo desde dos dispositivos.
 - `DraftStore` guarda un borrador de mascota y uno de reporte por UID, la pantalla actual y el regreso desde Perfil. Usa un archivo privado con escritura atómica en `noBackupFilesDir`; no guarda contraseñas ni se incluye en copias de seguridad. Guarda tras una pausa breve al escribir, al navegar, al pasar a segundo plano y antes de enviar.
@@ -10,13 +16,13 @@ Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hall
 - Al reiniciar, la app espera que Firestore termine su cola pendiente y después consulta ese ID. Solo una respuesta de escritura exitosa o una lectura del servidor confirma la sincronización. La caché por sí sola no confirma. Un rechazo o una comprobación fallida mantiene el registro local y ofrece reintento; la ausencia de confirmación no se presenta como éxito.
 - Los borradores se recuperan al volver a la misma cuenta en el mismo dispositivo. No se sincronizan entre dispositivos. Desinstalar o borrar los datos de la app elimina estos borradores y su historial local. Un cierre abrupto antes del guardado puede perder los últimos 250 ms de edición; el ID de un envío se guarda de forma síncrona antes de encolarlo. Si ese guardado falla, se bloquea el envío.
 
-El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.2 (versionCode 3)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
+El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.3 (versionCode 4)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
 
 ## Configuración manual necesaria
 
 **Configuración Android:** `app/google-services.json` está incluido en el repositorio para la app `com.mascotasmunicipales` del proyecto Firebase `mascotas-municipales`. Es configuración de cliente; no contiene credenciales administrativas ni claves privadas. El repositorio es público, por lo que cualquier persona puede leer estos identificadores. Nunca agregue credenciales de cuenta de servicio ni contraseñas. Para usar otro proyecto Firebase, reemplace el archivo por el JSON descargado desde Firebase Console > Configuración del proyecto > Tus apps > app Android.
 
-**Estado de despliegue:** las reglas de `firestore.rules` se publicaron en la base `(default)` del proyecto configurado el 21 de septiembre de 2026. Los dos índices compuestos de `firestore.indexes.json` aparecen como **Habilitado** en Firebase Console. El proveedor Correo electrónico/contraseña también aparece **Habilitada**. No se sembraron mascotas, reportes ni usuarios en la base remota.
+**Despliegue histórico (versión anterior, no estas reglas 1.3):** las reglas de `firestore.rules` se publicaron en la base `(default)` del proyecto configurado el 21 de septiembre de 2026. Los dos índices compuestos de `firestore.indexes.json` aparecen como **Habilitado** en Firebase Console. El proveedor Correo electrónico/contraseña también aparece **Habilitada**. No se sembraron mascotas, reportes ni usuarios en la base remota.
 
 1. Compruebe que el proyecto Firebase siga en plan **Spark** sin facturación. La app Android ya está registrada con `com.mascotasmunicipales`.
 2. Compruebe que **Authentication > Correo electrónico/contraseña** siga habilitado y que Cloud Firestore `(default)` esté disponible.
@@ -29,20 +35,20 @@ Se usan AGP 9.3.1, Gradle 9.5, Kotlin integrado en AGP 9, Firebase BoM 34.19.0, 
 
 | Colección | ID estable | Contenido | Acceso |
 | --- | --- | --- | --- |
-| `users/{uid}` | UID de Authentication | correo, rol, fechas | propio o funcionario; creación propia como `citizen` |
-| `pets/{petId}` | automático; demo con ID fijo | ficha pública, `ownerId`, clave de foto local, código, fechas | lectura pública; alta propia; cambios propios o de funcionario |
-| `reports/{reportId}` | automático | `ownerId`, especie, comuna, descripción, estado, fechas | propietario o funcionario |
+| `users/{uid}` | UID de Authentication | correo, rol, fechas | solo propio; creación propia como `citizen` |
+| `pets/{petId}` | automático; demo con ID fijo | ficha pública, `ownerId`, clave de foto local, código, fechas | lectura pública; alta propia; cambios propios o de administrador autorizado |
+| `reports/{reportId}` | automático | `ownerId`, especie, comuna, descripción, estado, fechas | propietario o administrador municipal |
 | `territories/{territoryId}` | `comuna-1` a `comuna-4` | nombre de comuna | lectura pública; escritura administrativa |
 
 Las contraseñas viven exclusivamente en Authentication. Contactos privados no se copian a fichas públicas. `ownerId` es un UID opaco, no teléfono, correo ni dirección. Firestore guarda solo claves de fotos locales, nunca imágenes ni Base64. Las marcas de tiempo vienen del servidor. Las reglas niegan por defecto otras rutas, validan campos y bloquean cambios de rol desde clientes.
 
-**Funcionario ficticio:** registre primero una cuenta de demostración. Una persona autorizada debe comprobar su UID en Authentication y cambiar `users/{uid}.role` de `citizen` a `staff` mediante la consola Firestore o Admin SDK desde un entorno de confianza. Verifique el UID. No incluya credenciales administrativas en la app. No se hizo ninguna asignación real.
+**Roles profesionales:** se autorizan mediante documentos `access/{uid}`, nunca mediante cambios de rol desde el cliente. El procedimiento manual está en [ROLES.md](ROLES.md). El campo histórico `users.role` no otorga privilegios.
 
 ## Sincronización y límites
 
 Firestore Android habilita persistencia sin conexión por defecto. Las listas usan metadatos: `hasPendingWrites` indica cambios locales pendientes y `isFromCache` distingue datos de caché. El éxito de escritura se muestra tras completarse la tarea del servidor. Sin red, el cambio puede verse localmente, pero sigue pendiente y podría fallar al reconectarse. La caché puede estar desactualizada y contiene solo documentos consultados previamente en ese dispositivo. Los conflictos en un documento siguen la regla «última escritura gana»; al sincronizar se vuelven a aplicar las reglas. Los recuentos requieren servidor y muestran «Sin conexión» si no está disponible. [Persistencia oficial](https://firebase.google.com/docs/firestore/manage-data/enable-offline), [agregaciones](https://firebase.google.com/docs/firestore/query-data/aggregation-queries).
 
-Inicio lee solo tres mascotas recientes; los directorios de mascotas y reportes leen hasta 30 documentos. Los indicadores cuentan hasta 1000 registros y están etiquetados así. `firestore.indexes.json` define índices compuestos de reportes por propietario y fecha/estado; mascotas usa índice simple de `createdAt`. Aún no hay botón «cargar más», así que los documentos anteriores al límite no aparecen. Cada ficha se consulta por ID. Si una caché vacía no puede confirmarse con el servidor, la interfaz lo dice expresamente. Los formularios limitan la longitud a lo aceptado por las reglas y evitan enviar dos veces el mismo formulario mientras una escritura está pendiente.
+Inicio lee solo tres mascotas recientes; los directorios de mascotas y reportes leen hasta 30 documentos. Los indicadores cuentan hasta 1000 registros y están etiquetados así. `firestore.indexes.json` define índices compuestos de reportes por propietario y fecha/estado; mascotas usa índice simple de `createdAt`. Los directorios ciudadanos aún no tienen botón «cargar más». Los nuevos directorios profesionales sí paginan de 20 en 20. Cada ficha se consulta por ID. Si una caché vacía no puede confirmarse con el servidor, la interfaz lo dice expresamente. Los formularios limitan la longitud a lo aceptado por las reglas y evitan enviar dos veces el mismo formulario mientras una escritura está pendiente.
 
 Siguen **simulados**: foto de reportes, lectura física QR, contacto con la organización, jornadas, vacunación y adopciones. Las comunas son etiquetas del prototipo; no se presentan cifras municipales inventadas.
 
@@ -59,13 +65,17 @@ $env:FIREBASE_PROJECT_ID = "ID_REAL"
 firebase emulators:exec --only auth,firestore --project $env:FIREBASE_PROJECT_ID "node --test tests/firestore.rules.test.mjs"
 ```
 
-Las 18 pruebas de reglas pasaron con emuladores locales. Cubren acceso anónimo a mascotas y reportes, creación legítima, límites de consultas, propiedad inmutable, privacidad, campos extra y tipos, fechas del servidor, permisos de funcionarios, borrados y escalada de rol al crear el propio perfil o actualizarlo. Cada prueba limpia la base del emulador y prepara sus propios datos; se exige `FIRESTORE_EMULATOR_HOST` en loopback para impedir apuntar estas pruebas a otro servidor. Ejecútelas con una base local de prueba desechable. Para probar Android contra emuladores, configure **solo una compilación local de prueba** con `FirebaseAuth.getInstance().useEmulator("10.0.2.2", 9099)` y `FirebaseFirestore.getInstance().useEmulator("10.0.2.2", 8080)` antes de usar los SDK. No deje esa configuración en la compilación normal.
+En la versión 1.2, las 18 pruebas de reglas pasaron con emuladores locales. Cubren acceso anónimo a mascotas y reportes, creación legítima, límites de consultas, propiedad inmutable, privacidad, campos extra y tipos, fechas del servidor, permisos de funcionarios, borrados y escalada de rol al crear el propio perfil o actualizarlo. Cada prueba limpia la base del emulador y prepara sus propios datos; se exige `FIRESTORE_EMULATOR_HOST` en loopback para impedir apuntar estas pruebas a otro servidor. Ejecútelas con una base local de prueba desechable. Para probar Android contra emuladores, configure **solo una compilación local de prueba** con `FirebaseAuth.getInstance().useEmulator("10.0.2.2", 9099)` y `FirebaseFirestore.getInstance().useEmulator("10.0.2.2", 8080)` antes de usar los SDK. No deje esa configuración en la compilación normal.
 
 La compilación `gradlew.bat :app:assembleDebug` pasó con el archivo JSON entregado. También se probó en un emulador Pixel 7 Pro con Android 13 usando una compilación temporal dirigida **solo a los emuladores locales** de Authentication y Firestore. Pasaron registro, ingreso, cierre de sesión, recuperación de sesión tras reiniciar el proceso, alta y detalle de mascota, alta y detalle de reporte con especie/comuna/descripción, cambio a «Resuelto», aislamiento de reportes entre dos cuentas ficticias y sincronización de un reporte creado sin red (de «Pendiente de sincronización» a «Sincronizado» tras reconectar). Después de optimizar, se verificó que un doble toque sin red crea un solo reporte, que la confirmación tardía no saca al usuario de Perfil y que una lista vacía sin red se identifica como caché. La compilación temporal no forma parte de esta entrega. No se crearon usuarios ni registros en Firebase remoto. No se probó con dos dispositivos ni se verificó este flujo en producción.
 
-`gradlew.bat :app:lintDebug` terminó correctamente: cero errores y 16 advertencias no bloqueantes. Incluyen cadenas españolas escritas directamente en Kotlin, recursos visuales no usados, ausencia de ícono propio y recomendaciones de actualizar el SDK objetivo y algunas dependencias. Los cambios de SDK y orientación requieren una prueba de compatibilidad específica antes de aplicarse.
+En la versión 1.2, `gradlew.bat :app:lintDebug` terminó correctamente: cero errores y 16 advertencias no bloqueantes. Incluyen cadenas españolas escritas directamente en Kotlin, recursos visuales no usados, ausencia de ícono propio y recomendaciones de actualizar el SDK objetivo y algunas dependencias. Los cambios de SDK y orientación requieren una prueba de compatibilidad específica antes de aplicarse.
 
 La siembra es opcional y explícita: `node scripts/seed-demo.mjs` solo muestra vista previa. Tras configurar credenciales administrativas de confianza y el ID real, `node scripts/seed-demo.mjs --apply` crea solo documentos ficticios de ID fijo ausentes; no sobrescribe. Para emulador use `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`. La app nunca siembra automáticamente.
+
+## Verificación de la versión 1.3
+
+Pasaron compilación y lint (0 errores, 32 advertencias) y **28 pruebas de reglas** con Firebase local. Se probó en Android el recorrido administrador → veterinario → cierre → ciudadano, con reinicios del proceso y cuentas ficticias. [Resultados y límites exactos](tests/android-roles.md). Los nuevos permisos e índices remotos siguen pendientes de autorización y despliegue.
 
 ## Verificación de la versión 1.2
 

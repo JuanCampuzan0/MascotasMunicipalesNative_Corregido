@@ -27,6 +27,11 @@ class WorkRepository {
             "reports" -> db.collection("reports").orderBy("createdAt", Query.Direction.DESCENDING)
             "access" -> db.collection("access").whereEqualTo("departmentId", access.departmentId)
                 .whereEqualTo("role", "vet").orderBy(FieldPath.documentId())
+            "eventRequests" -> db.collection("events").whereEqualTo("departmentId", access.departmentId)
+                .whereEqualTo("status", "Pendiente").orderBy("createdAt", Query.Direction.DESCENDING)
+            "myEvents" -> db.collection("events").whereEqualTo("departmentId", access.departmentId)
+                .whereEqualTo("authorId", uid)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
             else -> db.collection("cases").whereEqualTo("departmentId", access.departmentId).let {
                 if (access.role == "vet") it.whereEqualTo("vetId", uid) else it
             }.orderBy("updatedAt", Query.Direction.DESCENDING)
@@ -34,6 +39,41 @@ class WorkRepository {
         if (after != null) query = query.startAfter(after)
         query.limit(20).get(Source.SERVER).addOnSuccessListener { done(it.documents, null) }
             .addOnFailureListener { done(null, it.localizedMessage) }
+    }
+
+    fun proposeEvent(title: String, type: String, territoryId: String, location: String,
+                     description: String, scheduledAt: com.google.firebase.Timestamp, done: (String?) -> Unit) {
+        val actor = uid
+        val ref = db.collection("events").document()
+        db.runTransaction { tx ->
+            val permission = tx.get(db.collection("access").document(actor))
+            check(permission.getBoolean("active") == true && permission.getString("role") == "vet" &&
+                permission.getString("departmentId") == MUNICIPAL_DEPARTMENT) { "El acceso veterinario ya no está activo" }
+            tx.set(ref, mapOf(
+                "authorId" to actor, "departmentId" to MUNICIPAL_DEPARTMENT,
+                "territoryId" to territoryId, "type" to type, "title" to title.trim(),
+                "location" to location.trim(), "description" to description.trim(),
+                "scheduledAt" to scheduledAt, "status" to "Pendiente", "reviewedBy" to "",
+                "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
+            ))
+            null
+        }.addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage) }
+    }
+
+    fun reviewEvent(id: String, approve: Boolean, done: (String?) -> Unit) {
+        val actor = uid
+        val ref = db.collection("events").document(id)
+        db.runTransaction { tx ->
+            val current = tx.get(ref)
+            check(current.exists() && current.getString("status") == "Pendiente") {
+                "La solicitud ya fue revisada. Actualiza la lista."
+            }
+            tx.update(ref, mapOf(
+                "status" to if (approve) "Aprobado" else "Rechazado",
+                "reviewedBy" to actor, "updatedAt" to FieldValue.serverTimestamp()
+            ))
+            null
+        }.addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage) }
     }
 
     fun getCase(id: String, done: (DocumentSnapshot?, String?) -> Unit) {

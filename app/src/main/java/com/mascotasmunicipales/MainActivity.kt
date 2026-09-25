@@ -1,5 +1,7 @@
 package com.mascotasmunicipales
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -25,6 +27,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.firestore.ListenerRegistration
 import java.text.DateFormat
+import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -137,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         if (!model.ready) return
         when {
             route == "work" -> workHome()
+            route == "workevent" -> eventProposal()
             route.startsWith("workcase:") -> workCase(route.removePrefix("workcase:"))
             route == "accessibility" -> accessibilityScreen()
             route == "newPet" -> newPet()
@@ -308,6 +312,9 @@ class MainActivity : AppCompatActivity() {
     private fun date(t: com.google.firebase.Timestamp?) = t?.toDate()?.let {
         DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.forLanguageTag("es-CO")).format(it)
     } ?: "Pendiente"
+    private fun dateTime(t: com.google.firebase.Timestamp?) = t?.toDate()?.let {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.forLanguageTag("es-CO")).format(it)
+    } ?: "Fecha pendiente"
     private fun state(pending: Boolean, cache: Boolean) = when {
         pending -> "Pendiente de sincronización"
         cache -> "Dato en caché · sin confirmación reciente"
@@ -651,7 +658,32 @@ class MainActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(dp(42), dp(42)))
             addView(tv(territory.label.substringAfter("· ", territory.label), 15f, true).apply { setPadding(dp(14), 0, 0, 0) })
         }) }
+        c.addView(heading("Próximos eventos aprobados"))
+        val eventMessage = messageView("Consultando jornadas y eventos…"); c.addView(eventMessage)
+        val eventList = root(); c.addView(eventList)
         show(scroll(c))
+        val generation = screenGeneration
+        repo.approvedEvents { events, cache, error ->
+            if (generation != screenGeneration) return@approvedEvents
+            eventList.removeAllViews()
+            eventMessage.text = when {
+                error != null -> "No se pudieron consultar los eventos: $error"
+                events.isEmpty() && cache -> "No hay eventos en la caché. Conéctate para comprobar nuevas jornadas."
+                events.isEmpty() -> "Todavía no hay eventos aprobados próximos."
+                cache -> "Eventos guardados en este dispositivo; pueden requerir actualización."
+                else -> "${events.size} evento${if (events.size == 1) "" else "s"} próximo${if (events.size == 1) "" else "s"}."
+            }
+            events.forEach { event -> eventList.addView(card().apply {
+                addView(LinearLayout(this@MainActivity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(tv(event.title, 17f, true), LinearLayout.LayoutParams(0, -2, 1f))
+                    addView(pill(event.type))
+                })
+                addView(tv(dateTime(event.scheduledAt), 14f, true, tealDark))
+                addView(tv("${territoryLabel(event.territoryId)}\nLugar: ${event.location}", 12f, false, gray))
+                addView(tv(event.description, 13f).apply { setPadding(dp(2), dp(8), dp(2), dp(2)) })
+            }) }
+        }
     }
     private fun workHome() {
         remember("work", 4)
@@ -673,14 +705,109 @@ class MainActivity : AppCompatActivity() {
             if (access.role == "admin") {
                 c.addView(button("REVISAR REPORTES") { workList("reports", access) })
                 c.addView(button("EQUIPO VETERINARIO") { workList("access", access) })
+                c.addView(button("SOLICITUDES DE EVENTOS") { workList("eventRequests", access) })
+            } else {
+                c.addView(button("PROPONER EVENTO TERRITORIAL") { eventProposal() })
+                c.addView(secondaryButton("MIS SOLICITUDES DE EVENTOS") { workList("myEvents", access) })
             }
             c.addView(button(if (access.role == "admin") "CASOS DE LA DEPENDENCIA" else "MIS CASOS Y SEGUIMIENTOS") { workList("cases", access) })
         }
     }
 
+    private fun eventProposal() {
+        remember("workevent", 4)
+        val c = root(); c.addView(header("Proponer evento", "Requiere aprobación administrativa"))
+        c.addView(infoCard("Solicitud veterinaria", "El evento solo aparecerá en Territorio después de que un administrador lo apruebe.", "✦"))
+        val form = card(); form.addView(tv("Datos del evento", 16f, true))
+        val values = model.workDrafts.getOrPut("eventProposal") { mutableMapOf() }
+        val title = field("Nombre del evento", 100).apply {
+            setText(values["title"].orEmpty()); doAfterTextChanged { values["title"] = it.toString() }
+        }; form.addView(title)
+        val types = listOf("Vacunación", "Esterilización", "Bienestar animal", "Otro")
+        val type = select(types); form.addView(spinnerLabel("Tipo de jornada", type)); form.addView(type)
+        type.setSelection(types.indexOf(values["type"] ?: types.first()).coerceAtLeast(0))
+        type.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { values["type"] = types[position] }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        val territoryIds = TERRITORIES.map { it.id }
+        val territory = select(TERRITORIES.map { it.label }); form.addView(spinnerLabel("Comuna", territory)); form.addView(territory)
+        territory.setSelection(territoryIds.indexOf(values["territory"] ?: territoryIds.first()).coerceAtLeast(0))
+        territory.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { values["territory"] = territoryIds[position] }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        val location = field("Lugar específico o punto de encuentro", 160).apply {
+            setText(values["location"].orEmpty()); doAfterTextChanged { values["location"] = it.toString() }
+        }; form.addView(location)
+        val description = field("Descripción, requisitos y recomendaciones", 1000).apply {
+            minLines = 4; gravity = Gravity.TOP
+            setText(values["description"].orEmpty()); doAfterTextChanged { values["description"] = it.toString() }
+        }; form.addView(description)
+        val defaultDate = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 9); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        var scheduledMillis = values["scheduledAt"]?.toLongOrNull() ?: defaultDate.timeInMillis
+        fun scheduleLabel() = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT,
+            Locale.forLanguageTag("es-CO")).format(java.util.Date(scheduledMillis))
+        val schedule = secondaryButton("FECHA Y HORA · ${scheduleLabel()}") { }
+        schedule.setOnClickListener {
+            val selected = Calendar.getInstance().apply { timeInMillis = scheduledMillis }
+            DatePickerDialog(this, { _, year, month, day ->
+                selected.set(year, month, day)
+                TimePickerDialog(this, { _, hour, minute ->
+                    selected.set(Calendar.HOUR_OF_DAY, hour); selected.set(Calendar.MINUTE, minute)
+                    selected.set(Calendar.SECOND, 0); selected.set(Calendar.MILLISECOND, 0)
+                    scheduledMillis = selected.timeInMillis; values["scheduledAt"] = scheduledMillis.toString()
+                    schedule.text = "FECHA Y HORA · ${scheduleLabel()}"
+                }, selected.get(Calendar.HOUR_OF_DAY), selected.get(Calendar.MINUTE), true).show()
+            }, selected.get(Calendar.YEAR), selected.get(Calendar.MONTH), selected.get(Calendar.DAY_OF_MONTH)).show()
+        }
+        form.addView(schedule)
+        val result = messageView("Verificando tu acceso veterinario…"); form.addView(result)
+        lateinit var submit: Button
+        submit = button("ENVIAR PARA APROBACIÓN") {
+            when {
+                title.text.isBlank() || location.text.isBlank() || description.text.isBlank() ->
+                    result.text = "Completa nombre, lugar y descripción."
+                scheduledMillis <= System.currentTimeMillis() -> result.text = "Elige una fecha y hora futuras."
+                else -> {
+                    submit.isEnabled = false; result.text = "Esperando confirmación del servidor…"
+                    work.proposeEvent(title.text.toString(), values["type"] ?: types.first(),
+                        values["territory"] ?: territoryIds.first(), location.text.toString(),
+                        description.text.toString(), com.google.firebase.Timestamp(java.util.Date(scheduledMillis))) { failure ->
+                        if (failure == null) {
+                            model.workDrafts.remove("eventProposal")
+                            toast("Solicitud enviada al administrador"); workHome()
+                        } else {
+                            submit.isEnabled = true; result.text = "No confirmado: $failure"
+                        }
+                    }
+                }
+            }
+        }.apply { isEnabled = false }
+        form.addView(submit); c.addView(form)
+        c.addView(secondaryButton("VOLVER AL PANEL") { workHome() })
+        show(scroll(c))
+        val generation = screenGeneration; val account = repo.uid
+        work.access { access, error ->
+            if (generation == screenGeneration && account == repo.uid) {
+                submit.isEnabled = access?.role == "vet"
+                result.text = if (access?.role == "vet") "Borrador temporal listo para enviar."
+                else error ?: "Esta acción requiere un acceso veterinario activo."
+            }
+        }
+    }
+
     private fun workList(kind: String, access: WorkAccess, cursor: com.google.firebase.firestore.DocumentSnapshot? = null) {
         remember("work", 4)
-        val title = when (kind) { "reports" -> "Reportes para revisión"; "access" -> "Equipo veterinario"; else -> "Casos y seguimientos" }
+        val title = when (kind) {
+            "reports" -> "Reportes para revisión"
+            "access" -> "Equipo veterinario"
+            "eventRequests" -> "Solicitudes de eventos"
+            "myEvents" -> "Mis solicitudes"
+            else -> "Casos y seguimientos"
+        }
         val c = root(); c.addView(header(title, "20 por página · lectura del servidor"))
         c.addView(secondaryButton("VOLVER AL PANEL") { workHome() })
         val message = messageView("Cargando…"); c.addView(message); show(scroll(c))
@@ -695,6 +822,37 @@ class MainActivity : AppCompatActivity() {
                         addView(pill(if (doc.getBoolean("active") == true) "Activo" else "Suspendido", doc.getBoolean("active") == true))
                         addView(tv("UID: ${doc.id}", 12f, false, gray).apply { setTextIsSelectable(true) })
                         addView(tv("Aprobaciones y revocaciones: responsable de Firebase, mediante procedimiento documentado.", 12f))
+                    } else if (kind in listOf("eventRequests", "myEvents")) {
+                        addView(LinearLayout(this@MainActivity).apply {
+                            gravity = Gravity.CENTER_VERTICAL
+                            addView(tv(doc.getString("title").orEmpty(), 16f, true), LinearLayout.LayoutParams(0, -2, 1f))
+                            addView(pill(doc.getString("status").orEmpty(), doc.getString("status") == "Aprobado"))
+                        })
+                        addView(tv("${doc.getString("type")} · ${dateTime(doc.getTimestamp("scheduledAt"))}", 13f, true, tealDark))
+                        addView(tv("${territoryLabel(doc.getString("territoryId").orEmpty())}\nLugar: ${doc.getString("location")}\n${doc.getString("description")}", 12f, false, gray))
+                        if (kind == "eventRequests") {
+                            val result = messageView(""); addView(result)
+                            val approve = button("APROBAR Y PUBLICAR") { }
+                            val reject = secondaryButton("RECHAZAR SOLICITUD") { }
+                            fun review(accepted: Boolean) {
+                                approve.isEnabled = false; reject.isEnabled = false
+                                result.text = "Esperando confirmación del servidor…"
+                                work.reviewEvent(doc.id, accepted) { failure ->
+                                    if (generation == screenGeneration && account == repo.uid) {
+                                        if (failure == null) {
+                                            toast(if (accepted) "Evento aprobado y publicado" else "Solicitud rechazada")
+                                            workList("eventRequests", access)
+                                        } else {
+                                            approve.isEnabled = true; reject.isEnabled = true
+                                            result.text = "No confirmado: $failure"
+                                        }
+                                    }
+                                }
+                            }
+                            approve.setOnClickListener { review(true) }
+                            reject.setOnClickListener { review(false) }
+                            addView(approve); addView(reject)
+                        }
                     } else {
                         addView(tv(doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }, 16f, true))
                         addView(tv("${doc.getString("status")} · ${date(doc.getTimestamp("updatedAt"))}"))

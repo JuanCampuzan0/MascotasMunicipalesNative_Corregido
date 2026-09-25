@@ -127,6 +127,22 @@ class MunicipalRepository {
             .addOnSuccessListener { done(it.count, null) }.addOnFailureListener { done(null, it.localizedMessage) }
     }
 
+    /** Lectura pública acotada; una consulta al abrir Territorio evita un listener permanente. */
+    fun approvedEvents(done: (List<MunicipalEvent>, Boolean, String?) -> Unit) {
+        db.collection("events").whereEqualTo("status", "Aprobado")
+            .whereGreaterThanOrEqualTo("scheduledAt", com.google.firebase.Timestamp.now())
+            .orderBy("scheduledAt", Query.Direction.ASCENDING).limit(20).get()
+            .addOnSuccessListener { snapshot ->
+                done(snapshot.documents.map { s -> MunicipalEvent(
+                    id = s.id, authorId = s.getString("authorId").orEmpty(),
+                    territoryId = s.getString("territoryId").orEmpty(), type = s.getString("type").orEmpty(),
+                    title = s.getString("title").orEmpty(), location = s.getString("location").orEmpty(),
+                    description = s.getString("description").orEmpty(), scheduledAt = s.getTimestamp("scheduledAt"),
+                    status = s.getString("status").orEmpty(), createdAt = s.getTimestamp("createdAt")
+                ) }, snapshot.metadata.isFromCache, null)
+            }.addOnFailureListener { done(emptyList(), false, it.localizedMessage) }
+    }
+
     private fun pet(s: DocumentSnapshot) = Pet(
         id = s.id, ownerId = s.getString("ownerId").orEmpty(), name = s.getString("name").orEmpty(),
         species = s.getString("species").orEmpty(), breed = s.getString("breed").orEmpty(),

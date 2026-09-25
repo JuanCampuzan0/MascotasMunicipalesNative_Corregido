@@ -38,6 +38,19 @@ data class Report(
 
 data class Territory(val id: String, val label: String)
 
+data class MunicipalEvent(
+    val id: String = "",
+    val authorId: String = "",
+    val territoryId: String = "",
+    val type: String = "",
+    val title: String = "",
+    val location: String = "",
+    val description: String = "",
+    val scheduledAt: Timestamp? = null,
+    val status: String = "Pendiente",
+    val createdAt: Timestamp? = null
+)
+
 val TERRITORIES = listOf(
     Territory("comuna-1", "Comuna 1 · Centro Histórico"),
     Territory("comuna-2", "Comuna 2 · Nororiental"),

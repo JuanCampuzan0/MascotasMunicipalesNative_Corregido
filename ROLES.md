@@ -1,4 +1,4 @@
-# Roles y primer flujo municipal · versión 1.3
+# Roles y flujos municipales · versión 1.4
 
 ## Alcance de esta entrega
 
@@ -16,6 +16,13 @@ Primer recorrido completo:
 6. Administrador escribe un resultado operativo sin detalles clínicos ni contactos y cierra caso y reporte en una transacción. También puede cerrar un caso revisado sin intervención veterinaria. No puede saltar de asignado a cerrado.
 7. Ciudadano abre **Mis reportes > Detalle > Ver seguimiento del caso** para consultar estado y resultado.
 
+Flujo de eventos territoriales:
+
+1. Veterinario abre **Acceso profesional > Proponer evento territorial** y completa una jornada futura con tipo, comuna, lugar, fecha y descripción ficticia.
+2. La solicitud queda `Pendiente` y solo la leen su autor y el administrador de la dependencia. El veterinario consulta sus estados en **Mis solicitudes de eventos**.
+3. Administrador abre **Solicitudes de eventos** y aprueba o rechaza una solicitud. La decisión es definitiva desde el cliente y no permite alterar el contenido propuesto.
+4. Una solicitud `Aprobado` aparece públicamente en **Territorio** mientras su fecha sea futura. Una pendiente o rechazada nunca aparece en esa consulta.
+
 ## Esquema y privacidad
 
 | Ruta | Datos / acceso |
@@ -27,6 +34,7 @@ Primer recorrido completo:
 | `cases/{reportId}` | Referencias inmutables a reporte, propietario y mascota; nombre, especie, comuna, dependencia; `vetId`, `status`, `outcome`, `lastRecordId`, `version`, `updatedBy`, fechas. Lectura del propietario, administrador de la dependencia o veterinario asignado activo. |
 | `cases/{id}/clinicalRecords/{id}` | Autor, valoración, atención, seguimiento y fecha del servidor. Solo veterinario asignado activo; tampoco el administrador puede leerlos. Inmutables. |
 | `cases/{id}/history/{version}` | Actor, veterinario asignado, estado, versión y fecha. Escritura atómica obligatoria con cada transición, sin modificación/borrado. Mismos lectores del caso. Registro técnico; todavía no hay pantalla de historial. |
+| `events/{id}` | Autor veterinario, dependencia, comuna, tipo, título, lugar, descripción, fecha programada, estado, revisor y fechas. El veterinario crea solo `Pendiente`; el administrador decide; solo `Aprobado` es público. Sin contactos ni inscripciones. |
 
 El ciudadano recibe el resultado operativo, no la historia clínica. `vetId` y `updatedBy` son identificadores opacos y no contactos. Los campos de texto libre no se filtran automáticamente: use únicamente contenido ficticio apropiado para los lectores indicados. No introduzca datos clínicos en `outcome`.
 
@@ -57,7 +65,7 @@ Los borradores clínicos solo se conservan en memoria durante la sesión, inclui
 
 Firestore mantiene su caché Android. `Source.SERVER` no elimina documentos ya descargados del almacenamiento del SDK. Cambiar permisos bloquea nuevas operaciones en el servidor, pero no borra información vista o almacenada anteriormente. Una pantalla ya abierta es una lectura puntual: actualizarla comprueba el estado actual; no se promete borrado remoto ni revocación visual instantánea. Utilice dispositivos de demostración y datos ficticios. No borrar caché automáticamente, porque podría perder escrituras ciudadanas pendientes.
 
-Reportes profesionales, casos, equipo y atenciones se consultan en páginas de 20 con cursor. Cada página indica su cantidad, **no un total municipal**. Índices requeridos están en `firestore.indexes.json`: casos por dependencia/fecha; por dependencia/veterinario/fecha; equipo por dependencia/rol/ID. Las reglas no son filtros: las consultas veterinarias deben incluir su UID y dependencia.
+Reportes profesionales, casos, equipo, atenciones y solicitudes de eventos se consultan en páginas de 20 con cursor. Cada página indica su cantidad, **no un total municipal**. Territorio consulta una vez hasta 20 eventos aprobados futuros, sin listener permanente. Índices requeridos están en `firestore.indexes.json`: casos por dependencia/fecha; por dependencia/veterinario/fecha; equipo por dependencia/rol/ID; eventos por estado/fecha programada, dependencia/estado/creación y dependencia/autor/creación. Las reglas no son filtros: las consultas veterinarias deben incluir su UID y dependencia.
 
 ## Emulador y datos explícitos
 
@@ -80,7 +88,7 @@ Para probar desde Android, use exclusivamente una compilación de prueba que inv
 
 ## Próximas etapas
 
-Quedan para siguientes entregas: aprobación veterinaria desde la app con auditoría completa; resumen administrativo agregado; edición administrativa de mascotas en UI; historial visual; agenda/recordatorios de seguimientos; acceso clínico del propietario con un esquema específico; ampliar formularios de vinculación de mascota; modernización visual. El seguimiento actual es un texto clínico persistido, no una agenda ni una notificación. No hay cargas de fotos ni servicios de pago.
+Quedan para siguientes entregas: aprobación de cuentas veterinarias desde la app con auditoría completa; resumen administrativo agregado; edición administrativa de mascotas en UI; historial visual; agenda/recordatorios de seguimientos; notificaciones e inscripción a eventos; acceso clínico del propietario con un esquema específico; ampliar formularios de vinculación de mascota. El seguimiento actual es un texto clínico persistido y los eventos son anuncios, no una agenda con notificaciones. No hay cargas de fotos ni servicios de pago.
 
 ## Explicación para el profesor
 

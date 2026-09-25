@@ -47,6 +47,20 @@ service cloud.firestore {
         && d.status in ['Abierto','Resuelto','Cerrado']
         && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
+    function eventValid(d) {
+      return d.keys().hasAll(['authorId','departmentId','territoryId','type','title','location',
+        'description','scheduledAt','status','reviewedBy','createdAt','updatedAt'])
+        && d.keys().hasOnly(['authorId','departmentId','territoryId','type','title','location',
+          'description','scheduledAt','status','reviewedBy','createdAt','updatedAt'])
+        && text(d.authorId,128) && d.authorId.size() > 0
+        && d.departmentId == 'zipaquira-bienestar-animal' && territory(d.territoryId)
+        && d.type in ['Vacunación','Esterilización','Bienestar animal','Otro']
+        && text(d.title,100) && d.title.size() > 0
+        && text(d.location,160) && d.location.size() > 0
+        && text(d.description,1000) && d.description.size() > 0
+        && d.scheduledAt is timestamp && d.status in ['Pendiente','Aprobado','Rechazado']
+        && text(d.reviewedBy,128) && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
 
     match /users/{userId} {
       allow get: if signedIn() && request.auth.uid == userId;
@@ -108,6 +122,32 @@ service cloud.firestore {
         && resource.data.role == 'vet';
       // Aprobar, revocar o cambiar roles exige consola de confianza / Admin SDK.
       allow write: if false;
+    }
+
+    match /events/{eventId} {
+      // La ciudadanía, incluso sin sesión, ve exclusivamente eventos aprobados.
+      allow get: if (signedIn() && resource.data.authorId == request.auth.uid
+          && professional('vet', resource.data.departmentId))
+        || professional('admin', resource.data.departmentId)
+        || resource.data.status == 'Aprobado';
+      allow list: if bounded() && resource.data.status == 'Aprobado';
+      allow list: if bounded() && professional('admin', resource.data.departmentId);
+      allow list: if bounded() && signedIn() && resource.data.authorId == request.auth.uid
+        && professional('vet', resource.data.departmentId);
+      allow create: if eventValid(request.resource.data)
+        && professional('vet', request.resource.data.departmentId)
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.status == 'Pendiente' && request.resource.data.reviewedBy == ''
+        && request.resource.data.scheduledAt > request.time
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if eventValid(request.resource.data)
+        && professional('admin', resource.data.departmentId)
+        && resource.data.status == 'Pendiente'
+        && request.resource.data.status in ['Aprobado','Rechazado']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
     function caseReader(d) {
       return signedIn() && (d.ownerId == request.auth.uid || professional('admin', d.departmentId)

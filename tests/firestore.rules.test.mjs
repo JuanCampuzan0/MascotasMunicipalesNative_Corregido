@@ -162,6 +162,53 @@ test('administrador municipal tampoco lee un caso de otra dependencia', async()=
   await assertSucceeds(getDoc(doc(db('alice'),'cases/owned'))); // Todavía no existe; permite consultar seguimiento propio.
 });
 
+const eventData = (authorId='vet', overrides={}) => ({
+  authorId, departmentId, territoryId:'comuna-2', type:'Vacunación', title:'Jornada ficticia',
+  location:'Parque de demostración', description:'Vacunación de mascotas con datos ficticios.',
+  scheduledAt:new Date(Date.now()+86400000), status:'Pendiente', reviewedBy:'',
+  createdAt:serverTimestamp(), updatedAt:serverTimestamp(), ...overrides
+});
+
+test('veterinario activo propone evento futuro; otros roles y datos inválidos se rechazan', async()=>{
+  await assertSucceeds(setDoc(doc(db('vet'),'events/proposal'),eventData()));
+  for(const uid of ['alice','staff','revoked','outsidevet'])
+    await assertFails(setDoc(doc(db(uid),`events/forbidden-${uid}`),eventData(uid)));
+  await assertFails(setDoc(doc(db('vet'),'events/past'),eventData('vet',{scheduledAt:new Date(Date.now()-60000)})));
+  await assertFails(setDoc(doc(db('vet'),'events/approved'),eventData('vet',{status:'Aprobado',reviewedBy:'vet'})));
+  await assertFails(setDoc(doc(db('vet'),'events/extra'),eventData('vet',{contact:'dato no permitido'})));
+});
+
+test('solicitud pendiente es privada para autor veterinario y administración', async()=>{
+  await assertSucceeds(setDoc(doc(db('vet'),'events/proposal'),eventData()));
+  await assertSucceeds(getDoc(doc(db('vet'),'events/proposal')));
+  await assertSucceeds(getDoc(doc(db('staff'),'events/proposal')));
+  for(const uid of [null,'alice','vet2','outside']) await assertFails(getDoc(doc(db(uid),'events/proposal')));
+  await assertSucceeds(getDocs(query(collection(db('vet'),'events'),where('departmentId','==',departmentId),where('authorId','==','vet'),orderBy('createdAt','desc'),limit(20))));
+  await assertSucceeds(getDocs(query(collection(db('staff'),'events'),where('departmentId','==',departmentId),where('status','==','Pendiente'),orderBy('createdAt','desc'),limit(20))));
+  await assertFails(getDocs(query(collection(db('vet2'),'events'),where('authorId','==','vet'),limit(20))));
+  await assertFails(getDocs(query(collection(db('staff'),'events'),where('departmentId','==',departmentId),limit(21))));
+});
+
+test('administrador aprueba una vez y solo entonces el evento se vuelve público', async()=>{
+  await setDoc(doc(db('vet'),'events/proposal'),eventData());
+  await assertFails(updateDoc(doc(db('vet'),'events/proposal'),{status:'Aprobado',reviewedBy:'vet',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(db('staff'),'events/proposal'),{title:'Título alterado',status:'Aprobado',reviewedBy:'staff',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db('staff'),'events/proposal'),{status:'Aprobado',reviewedBy:'staff',updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(doc(db(),'events/proposal')));
+  await assertSucceeds(getDocs(query(collection(db(),'events'),where('status','==','Aprobado'),orderBy('scheduledAt'),limit(20))));
+  await assertFails(updateDoc(doc(db('staff'),'events/proposal'),{status:'Rechazado',reviewedBy:'staff',updatedAt:serverTimestamp()}));
+  await assertFails(deleteDoc(doc(db('staff'),'events/proposal')));
+});
+
+test('evento rechazado permanece visible solo para autor y administración', async()=>{
+  await setDoc(doc(db('vet'),'events/rejected'),eventData());
+  await assertSucceeds(updateDoc(doc(db('staff'),'events/rejected'),{status:'Rechazado',reviewedBy:'staff',updatedAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(db(),'events/rejected')));
+  await assertFails(getDoc(doc(db('alice'),'events/rejected')));
+  await assertSucceeds(getDoc(doc(db('vet'),'events/rejected')));
+  await assertSucceeds(getDoc(doc(db('staff'),'events/rejected')));
+});
+
 test("lectura pública de mascota, datos privados aislados", async () => {
   await assertSucceeds(getDoc(doc(db(), "pets/public")));
   await assertFails(getDoc(doc(db(), "users/alice")));

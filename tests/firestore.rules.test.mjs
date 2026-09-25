@@ -161,6 +161,11 @@ test('administrador municipal tampoco lee un caso de otra dependencia', async()=
   await assertFails(getDoc(doc(db('vet'),'cases/foreign')));
   await assertSucceeds(getDoc(doc(db('alice'),'cases/owned'))); // Todavía no existe; permite consultar seguimiento propio.
 });
+test('consulta pública por código QR queda acotada y no expone usuarios', async()=>{
+  const result = await assertSucceeds(getDocs(query(collection(db(null),'pets'),where('qrCode','==','ZPQ-1234ABCD'),limit(1))));
+  if(result.size !== 1 || result.docs[0].data().name !== 'Luna') throw Error('La ficha QR pública no coincide');
+  await assertFails(getDoc(doc(db(null),'users/alice')));
+});
 
 const eventData = (authorId='vet', overrides={}) => ({
   authorId, departmentId, territoryId:'comuna-2', type:'Vacunación', title:'Jornada ficticia',

@@ -2,6 +2,12 @@
 
 Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración incluidas en `drawable-nodpi`.
 
+## Versión 1.5: consulta QR y mejoras de presentación
+
+La app incorpora icono propio y pantalla de inicio, información de versión y privacidad, búsqueda local del directorio de mascotas, filtros locales de reportes, estados con acciones de reintento y consulta pública por QR. El lector usa Google Code Scanner, limita la detección al formato QR, procesa en el dispositivo mediante Google Play Services y no solicita permiso de cámara a la app. Si el módulo no está disponible, el código puede escribirse manualmente.
+
+La búsqueda y los filtros trabajan sobre los 30 documentos que ya cargó cada directorio y no generan lecturas adicionales en Firestore. La consulta QR ejecuta una sola búsqueda exacta con límite de un documento, muestra únicamente la ficha pública y no abre un listener permanente. No se añadió ningún servicio de pago. El recorrido reproducible está en [tests/demo-second-cut.md](tests/demo-second-cut.md).
+
 ## Versión 1.4: eventos territoriales moderados
 
 El veterinario aprobado puede proponer una jornada futura indicando tipo, nombre, comuna, lugar, fecha, hora y descripción. La solicitud permanece privada mientras está **Pendiente**. Un administrador de la dependencia puede aprobarla o rechazarla una sola vez; el contenido queda inmutable durante la revisión. Solo los eventos **Aprobados** y cuya fecha aún no ha pasado aparecen en **Territorio**, ordenados cronológicamente y limitados a 20 por consulta.
@@ -32,7 +38,7 @@ La coordenada central de referencia (`5.021476, -73.990955`) procede de la ficha
 - Al reiniciar, la app espera que Firestore termine su cola pendiente y después consulta ese ID. Solo una respuesta de escritura exitosa o una lectura del servidor confirma la sincronización. La caché por sí sola no confirma. Un rechazo o una comprobación fallida mantiene el registro local y ofrece reintento; la ausencia de confirmación no se presenta como éxito.
 - Los borradores se recuperan al volver a la misma cuenta en el mismo dispositivo. No se sincronizan entre dispositivos. Desinstalar o borrar los datos de la app elimina estos borradores y su historial local. Un cierre abrupto antes del guardado puede perder los últimos 400 ms de edición; el ID de un envío se guarda de forma síncrona antes de encolarlo. Si ese guardado falla, se bloquea el envío.
 
-El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.4 (versionCode 5)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
+El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.5 (versionCode 6)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
 
 ## Configuración manual necesaria
 
@@ -45,7 +51,7 @@ El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.4 (ver
 3. Para otro proyecto, revise `firestore.rules` y `firestore.indexes.json` y despliéguelos con autorización usando Firebase CLI y el ID real: `firebase deploy --only firestore:rules,firestore:indexes --project ID_REAL`.
 4. Abra esta carpeta en Android Studio, sincronice Gradle y compile con `gradlew.bat :app:assembleDebug`.
 
-Se usan AGP 9.3.1, Gradle 9.5, Kotlin integrado en AGP 9, Firebase BoM 34.19.0, Authentication, Firestore y osmdroid 6.1.20. No hay Storage, Functions, analítica ni servicio de pago. [Configuración oficial Android](https://firebase.google.com/docs/android/setup).
+Se usan AGP 9.3.1, Gradle 9.5, Kotlin integrado en AGP 9, Firebase BoM 34.19.0, Authentication, Firestore, osmdroid 6.1.20 y Google Code Scanner 16.1.0. No hay Storage, Functions, analítica ni servicio de pago. [Configuración oficial Android](https://firebase.google.com/docs/android/setup), [lector QR oficial](https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner).
 
 ## Datos y permisos
 
@@ -67,9 +73,9 @@ Firestore Android habilita persistencia sin conexión por defecto. Las listas us
 
 Inicio lee solo tres mascotas recientes; los directorios de mascotas y reportes leen hasta 30 documentos. Los indicadores cuentan hasta 1000 registros y están etiquetados así. `firestore.indexes.json` define índices compuestos de reportes, casos, accesos y eventos; mascotas usa índice simple de `createdAt`. Los directorios ciudadanos aún no tienen botón «cargar más». Los nuevos directorios profesionales y solicitudes de eventos paginan de 20 en 20. Territorio hace una sola consulta de hasta 20 eventos futuros aprobados al abrir la pantalla, sin listener permanente. Cada ficha se consulta por ID. Si una caché vacía no puede confirmarse con el servidor, la interfaz lo dice expresamente. Los formularios limitan la longitud a lo aceptado por las reglas y evitan enviar dos veces el mismo formulario mientras una escritura está pendiente.
 
-Siguen **simulados**: foto de reportes, lectura física QR, contacto con la organización, ejecución e inscripción a jornadas, aplicación real de vacunas y adopciones. La versión 1.4 permite publicar el anuncio ficticio de una jornada aprobada, no prestar el servicio. Las comunas son etiquetas del prototipo; no se presentan cifras municipales inventadas.
+Siguen **simulados**: foto de reportes, contacto con la organización, ejecución e inscripción a jornadas, aplicación real de vacunas y adopciones. La lectura QR ya consulta fichas públicas reales existentes en Firestore; no revela datos del responsable. La versión 1.4 permite publicar el anuncio ficticio de una jornada aprobada, no prestar el servicio. Las comunas son etiquetas del prototipo; no se presentan cifras municipales inventadas.
 
-El botón **Perfil** abre un menú con Accesibilidad, Información de la aplicación, Información de tu cuenta, Cambiar correo, Cambiar contraseña y Cambiar información de tus mascotas. **Accesibilidad** y **Cerrar sesión** funcionan; las demás opciones siguen indicando **Próximamente**.
+El botón **Perfil** abre un menú con Accesibilidad, Información de la aplicación, Información de tu cuenta, Cambiar correo, Cambiar contraseña y Cambiar información de tus mascotas. **Accesibilidad**, **Información de la aplicación** y **Cerrar sesión** funcionan; las demás opciones siguen indicando **Próximamente**.
 
 Accesibilidad también está disponible antes de iniciar sesión. Sus tres interruptores guardan preferencias en el dispositivo: texto de la app 30 % más grande (además de la escala de fuente del sistema), contraste alto y paleta azul para daltonismo. La interfaz expresa estados con palabras, diferencia la pestaña seleccionada por fondo y peso del texto, etiqueta formularios y registros para TalkBack y ofrece un acceso a los ajustes de accesibilidad de Android. La app no activa TalkBack por su cuenta. Los datos y preferencias de accesibilidad no se envían a Firebase.
 
@@ -97,6 +103,10 @@ Pasaron compilación y lint (0 errores, 32 advertencias) y **28 pruebas de regla
 ## Verificación de la versión 1.4
 
 Pasaron `:app:assembleDebug`, `:app:lintDebug` y **32 pruebas de reglas** en Firestore local: las 28 anteriores y cuatro nuevas para creación veterinaria, privacidad pendiente, aprobación/publicación, rechazo, inmutabilidad y consultas acotadas. El protocolo Android está en [tests/android-events.md](tests/android-events.md). No se desplegaron reglas, índices ni datos en Firebase remoto.
+
+## Verificación de la versión 1.5
+
+Pasaron `:app:assembleDebug`, `:app:lintDebug` y **33 pruebas de reglas** en el emulador local de Firestore. La prueba nueva comprueba que la consulta pública por código QR devuelve una sola ficha de mascota y no permite leer perfiles de usuarios. Lint terminó sin errores; conserva 44 advertencias no bloqueantes, principalmente textos de la interfaz escritos en Kotlin y avisos de versiones de dependencias. El recorrido manual de presentación está en [tests/demo-second-cut.md](tests/demo-second-cut.md). El lector con cámara requiere Google Play Services; en equipos donde el módulo no esté disponible queda habilitada la consulta manual del código.
 
 ## Verificación de la versión 1.2
 

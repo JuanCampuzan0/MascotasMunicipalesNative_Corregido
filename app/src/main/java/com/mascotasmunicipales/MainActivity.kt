@@ -27,6 +27,9 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -37,12 +40,15 @@ import org.osmdroid.views.overlay.CopyrightOverlay
 import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.text.DateFormat
+import java.text.Normalizer
 import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     companion object {
         private val ZIPAQUIRA_CENTER = GeoPoint(5.021476, -73.990955)
+        private val SEARCH_MARKS = "\\p{M}+".toRegex()
+        private val PUBLIC_QR_CODE = "ZPQ-[A-Z0-9]{1,32}".toRegex()
     }
 
     private lateinit var model: AppViewModel
@@ -72,6 +78,7 @@ class MainActivity : AppCompatActivity() {
     private var highContrast = false
     private var colorblindPalette = false
     private var accessibilityOpen = false
+    private var publicQrOpen = false
     private var accessibilityScrollY = 0
     private lateinit var content: FrameLayout
     private lateinit var nav: LinearLayout
@@ -111,9 +118,16 @@ class MainActivity : AppCompatActivity() {
                     if (model.ready) profileMenu() else authScreen()
                     return
                 }
+                if (publicQrOpen) {
+                    publicQrOpen = false
+                    authScreen()
+                    return
+                }
                 if (!model.ready || model.screen == "home") finish()
                 else renderRoute(when {
                     model.screen == "profile" -> model.previousScreen
+                    model.screen == "about" -> "profile"
+                    model.screen == "qr" -> "pets"
                     model.screen == "newPet" || model.screen.startsWith("pet:") -> "pets"
                     model.screen == "newReport" || model.screen.startsWith("report:") -> "reports"
                     else -> "home"
@@ -160,6 +174,8 @@ class MainActivity : AppCompatActivity() {
             route == "workevent" -> eventProposal()
             route.startsWith("workcase:") -> workCase(route.removePrefix("workcase:"))
             route == "accessibility" -> accessibilityScreen()
+            route == "about" -> aboutScreen()
+            route == "qr" -> qrLookupScreen()
             route == "newPet" -> newPet()
             route == "newReport" -> newReport()
             route.startsWith("pet:") -> petDetail(route.removePrefix("pet:"))
@@ -172,6 +188,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun clearListeners() { listeners.forEach { it.remove() }; listeners.clear() }
+    private fun searchable(value: String): String = Normalizer.normalize(value.lowercase(Locale.forLanguageTag("es-CO")), Normalizer.Form.NFD)
+        .replace(SEARCH_MARKS, "").trim()
+    private fun publicQrCode(value: String): String? = PUBLIC_QR_CODE.find(value.trim().uppercase(Locale.ROOT))?.value
     private fun configureOpenStreetMap() {
         val osm = Configuration.getInstance()
         val base = File(cacheDir, "openstreetmap")
@@ -315,14 +334,16 @@ class MainActivity : AppCompatActivity() {
             if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE).apply { alpha = .88f })
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (model.ready) {
-            val inProfile = model.screen in listOf("profile", "accessibility")
+            val inProfile = model.screen in listOf("profile", "accessibility", "about")
+            val inAbout = model.screen == "about"
             addView(tv(if (inProfile) "Volver" else "Perfil", 12f, true, teal).apply {
                 gravity = Gravity.CENTER
                 minHeight = dp(56); minWidth = dp(64)
-                contentDescription = if (accessibilityOpen) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
+                contentDescription = if (accessibilityOpen || inAbout) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
                 background = RippleDrawable(ColorStateList.valueOf(Color.argb(35, 20, 127, 149)), shape(), rounded(Color.WHITE, 14, Color.TRANSPARENT, 0))
                 setOnClickListener {
                     if (accessibilityOpen) profileMenu()
+                    else if (inAbout) profileMenu()
                     else if (inProfile) renderRoute(model.previousScreen)
                     else { model.previousScreen = model.screen; profileMenu() }
                 }
@@ -365,6 +386,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun messageView(value: String) = tv(value, 12f, false, gray).apply {
+        accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         background = rounded(if (highContrast) Color.WHITE else softTeal, 12, if (highContrast) Color.BLACK else Color.TRANSPARENT,
             if (highContrast) 1 else 0)
         setPadding(dp(12), dp(10), dp(12), dp(10))
@@ -441,6 +463,7 @@ class MainActivity : AppCompatActivity() {
         show(scroll(c))
     }
     private fun authScreen() {
+        publicQrOpen = false
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Registro e ingreso · Zipaquirá"))
         c.addView(heading("Bienvenido"))
         c.addView(tv("Ingresa para registrar mascotas, crear reportes y consultar su seguimiento.", 14f, false, gray).apply {
@@ -469,6 +492,7 @@ class MainActivity : AppCompatActivity() {
         form.addView(login); form.addView(register); c.addView(form)
         val accessibility = secondaryButton("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
         c.addView(accessibility)
+        c.addView(secondaryButton("CONSULTAR MASCOTA POR QR") { qrLookupScreen() })
         message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         show(scroll(c))
         updateAuthUi = { session ->
@@ -528,6 +552,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(heading("Acciones rápidas"))
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
+        c.addView(button("CONSULTAR QR") { qrLookupScreen() })
         c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(heading("Registros recientes · máximo 3", 15f))
         val list = root(); c.addView(list)
@@ -563,12 +588,46 @@ class MainActivity : AppCompatActivity() {
         remember("pets", 2)
         val c = root(); c.addView(header("Directorio de mascotas", "Registros públicos · 30 más recientes"))
         c.addView(button("+ REGISTRAR MASCOTA") { newPet() })
-        val list = root(); c.addView(list); show(scroll(c))
-        listeners.add(repo.observePets { pets, cache, error ->
+        c.addView(secondaryButton("ESCANEAR CÓDIGO QR") { startQrScanner() })
+        val search = field("Buscar por nombre, especie, raza, comuna o código", 100); c.addView(search)
+        val status = messageView("Cargando mascotas…"); c.addView(status)
+        val list = root(); c.addView(list)
+        var currentPets = emptyList<Pet>()
+        var currentCache = false
+        var currentError: String? = null
+        fun renderPets() {
             list.removeAllViews()
-            if (error != null) list.addView(tv("Error: $error"))
-            else if (pets.isEmpty()) list.addView(tv(if (cache) "Sin registros en caché; conecta para verificar." else "Todavía no hay mascotas registradas."))
-            else pets.forEach { list.addView(petCard(it, cache)) }
+            val terms = searchable(search.text.toString()).split(" ").filter { it.isNotBlank() }
+            val visible = currentPets.filter { pet ->
+                val text = searchable(listOf(pet.name, pet.species, pet.breed, pet.color,
+                    territoryLabel(pet.territoryId), pet.qrCode).joinToString(" "))
+                terms.all(text::contains)
+            }
+            status.text = when {
+                currentError != null -> "No se pudo actualizar: $currentError"
+                currentPets.isEmpty() && currentCache -> "Sin registros en caché. Conéctate y reintenta."
+                currentPets.isEmpty() -> "Todavía no hay mascotas registradas."
+                terms.isNotEmpty() -> "${visible.size} resultado${if (visible.size == 1) "" else "s"} de ${currentPets.size}."
+                currentCache -> "${currentPets.size} registros guardados en este dispositivo; pueden requerir actualización."
+                else -> "${currentPets.size} mascotas disponibles."
+            }
+            when {
+                currentError != null || currentPets.isEmpty() && currentCache ->
+                    list.addView(secondaryButton("REINTENTAR") { pets() })
+                visible.isEmpty() && currentPets.isNotEmpty() ->
+                    list.addView(infoCard("Sin coincidencias", "Prueba otro nombre, especie, comuna o código.", "⌕"))
+                else -> visible.forEach { list.addView(petCard(it, currentCache)) }
+            }
+        }
+        val applySearch = Runnable { if (search.isAttachedToWindow) renderPets() }
+        search.doAfterTextChanged {
+            search.removeCallbacks(applySearch)
+            search.postDelayed(applySearch, 150L)
+        }
+        show(scroll(c))
+        listeners.add(repo.observePets { pets, cache, error ->
+            currentPets = pets; currentCache = cache; currentError = error
+            renderPets()
         })
     }
     private fun newPet() {
@@ -625,38 +684,139 @@ class MainActivity : AppCompatActivity() {
             body.addView(secondaryButton("← VOLVER") { pets() })
         })
     }
+    private fun startQrScanner() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(this, options).startScan()
+            .addOnSuccessListener { barcode ->
+                val value = barcode.rawValue.orEmpty()
+                if (publicQrCode(value) == null) {
+                    qrLookupScreen(scannerMessage = "El QR leído no contiene un código público válido de Mascotas Municipales.")
+                } else qrLookupScreen(value)
+            }
+            .addOnCanceledListener { }
+            .addOnFailureListener {
+                qrLookupScreen(scannerMessage = "No se pudo abrir el lector en este dispositivo. Puedes escribir el código manualmente.")
+            }
+    }
+
+    private fun qrLookupScreen(initialCode: String = "", scannerMessage: String = "") {
+        if (model.ready) remember("qr", 2) else publicQrOpen = true
+        val c = root(); c.addView(header("Consulta por QR", "Ficha pública de la mascota"))
+        c.addView(infoCard("Consulta segura", "El resultado no muestra correo, teléfono, dirección ni datos del responsable.", "▣"))
+        val form = card(); form.addView(tv("Código público", 16f, true))
+        val code = field("Ejemplo: ZPQ-LUNA0000", 120); form.addView(code)
+        if (initialCode.isNotBlank()) code.setText(publicQrCode(initialCode).orEmpty())
+        val message = messageView(scannerMessage.ifBlank { "Escanea un QR o escribe el código impreso en la ficha." }); form.addView(message)
+        val results = root()
+        fun lookup() {
+            val normalized = publicQrCode(code.text.toString())
+            if (normalized == null) {
+                message.text = "Escribe un código válido con el formato ZPQ- seguido de letras o números."
+                return
+            }
+            code.setText(normalized); code.setSelection(normalized.length)
+            message.text = "Consultando $normalized…"
+            results.removeAllViews()
+            val generation = screenGeneration
+            repo.findPetByQrCode(normalized) { pet, cache, error ->
+                if (generation != screenGeneration) return@findPetByQrCode
+                results.removeAllViews()
+                message.text = when {
+                    error != null -> "No se pudo consultar: $error"
+                    pet == null && cache -> "El código no está en la caché. Conéctate y vuelve a intentar."
+                    pet == null -> "No existe una mascota pública con ese código."
+                    cache -> "Ficha recuperada de la caché; puede requerir actualización."
+                    else -> "Ficha pública encontrada."
+                }
+                if (pet != null) results.addView(card().apply {
+                    addView(tv(pet.name, 22f, true))
+                    addView(pill(pet.status))
+                    addView(tv("${pet.species} · ${pet.breed}\nSexo: ${pet.sex}\nEdad: ${pet.age}\nColor: ${pet.color}\n${territoryLabel(pet.territoryId)}\nCódigo: ${pet.qrCode}").apply {
+                        setLineSpacing(0f, 1.2f)
+                    })
+                    if (model.ready) addView(button("ABRIR FICHA COMPLETA") { petDetail(pet.id) })
+                })
+                if (error != null || pet == null) results.addView(secondaryButton("REINTENTAR") { lookup() })
+            }
+        }
+        form.addView(button("CONSULTAR CÓDIGO") { lookup() })
+        form.addView(secondaryButton("ESCANEAR CON LA CÁMARA") { startQrScanner() })
+        c.addView(form); c.addView(results)
+        c.addView(secondaryButton("← VOLVER") {
+            if (model.ready) pets() else { publicQrOpen = false; authScreen() }
+        })
+        show(scroll(c))
+        if (initialCode.isNotBlank() && publicQrCode(initialCode) != null) lookup()
+    }
+
+    private fun reportCard(r: Report, cache: Boolean) = card().apply {
+        isFocusable = true
+        contentDescription = "Abrir reporte de ${r.petName.ifBlank { "mascota sin identificar" }}, ${r.type}, ${r.status}, ${date(r.createdAt)}. ${state(r.pending, cache)}"
+        setOnClickListener { reportDetail(r.id) }
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        addView(LinearLayout(this@MainActivity).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(tv(r.petName.ifBlank { "Mascota sin identificar" }, 16f, true).apply {
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(pill(r.type))
+        })
+        addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        })
+        addView(pill(state(r.pending, cache), !r.pending && !cache).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        })
+    }
     private fun reports() {
         remember("reports", 1)
         val c = root(); c.addView(header("Mis reportes", "30 más recientes"))
         c.addView(button("+ NUEVO REPORTE") { newReport() })
+        val filters = listOf("Todos", "Abiertos", "Resueltos", "Cerrados")
+        val filter = select(filters); c.addView(spinnerLabel("Filtrar por estado", filter)); c.addView(filter)
+        val status = messageView("Cargando reportes…"); c.addView(status)
         val list = root(); c.addView(list); show(scroll(c))
         val generation = screenGeneration
         val requestedUid = repo.uid
+        var currentReports = emptyList<Report>()
+        var currentCache = false
+        var currentError: String? = null
+        fun renderReports() {
+            list.removeAllViews()
+            val visible = currentReports.filter { report -> when (filter.selectedItemPosition) {
+                1 -> report.status == "Abierto"
+                2 -> report.status == "Resuelto"
+                3 -> report.status == "Cerrado"
+                else -> true
+            } }
+            status.text = when {
+                currentError != null -> "No se pudo actualizar: $currentError"
+                currentReports.isEmpty() && currentCache -> "Sin reportes en caché. Conéctate y reintenta."
+                currentReports.isEmpty() -> "Todavía no hay reportes visibles."
+                else -> "${visible.size} de ${currentReports.size} reportes · ${filters[filter.selectedItemPosition]}."
+            }
+            if (currentError != null || currentReports.isEmpty() && currentCache) {
+                list.addView(secondaryButton("REINTENTAR") { reports() })
+                return
+            }
+            if (visible.isEmpty() && currentReports.isNotEmpty()) {
+                list.addView(infoCard("Sin reportes en este filtro", "Selecciona otro estado para ver más resultados.", "⌕"))
+                return
+            }
+            visible.forEach { r -> list.addView(reportCard(r, currentCache)) }
+        }
+        filter.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = renderReports()
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
         run {
             if (generation == screenGeneration && requestedUid == repo.uid) {
                 val display: (List<Report>, Boolean, String?) -> Unit = { reports, cache, error ->
-                    list.removeAllViews()
-                    if (error != null) list.addView(tv("Error: $error"))
-                    else if (reports.isEmpty()) list.addView(tv(if (cache) "Sin reportes en caché; conecta para verificar." else "Todavía no hay reportes visibles."))
-                    else reports.forEach { r -> list.addView(card().apply {
-                        isFocusable = true
-                        contentDescription = "Abrir reporte de ${r.petName.ifBlank { "mascota sin identificar" }}, ${r.type}, ${r.status}, ${date(r.createdAt)}. ${state(r.pending, cache)}"
-                        setOnClickListener { reportDetail(r.id) }
-                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                        addView(LinearLayout(this@MainActivity).apply {
-                            gravity = Gravity.CENTER_VERTICAL
-                            addView(tv(r.petName.ifBlank { "Mascota sin identificar" }, 16f, true).apply {
-                                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                            }, LinearLayout.LayoutParams(0, -2, 1f))
-                            addView(pill(r.type))
-                        })
-                        addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray).apply {
-                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        })
-                        addView(pill(state(r.pending, cache), !r.pending && !cache).apply {
-                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        })
-                    }) }
+                    currentReports = reports; currentCache = cache; currentError = error
+                    renderReports()
                 }
                 listeners.add(repo.observeMyReports(display))
             }
@@ -760,6 +920,9 @@ class MainActivity : AppCompatActivity() {
                 events.isEmpty() -> "Todavía no hay eventos aprobados próximos."
                 cache -> "Eventos guardados en este dispositivo; pueden requerir actualización."
                 else -> "${events.size} evento${if (events.size == 1) "" else "s"} próximo${if (events.size == 1) "" else "s"}."
+            }
+            if (error != null || events.isEmpty() && cache) {
+                eventList.addView(secondaryButton("REINTENTAR EVENTOS") { territory() })
             }
             events.forEach { event -> eventList.addView(card().apply {
                 addView(LinearLayout(this@MainActivity).apply {
@@ -1126,6 +1289,30 @@ class MainActivity : AppCompatActivity() {
         show(settingsScroll)
         if (accessibilityScrollY > 0) settingsScroll.post { settingsScroll.scrollTo(0, accessibilityScrollY) }
     }
+    @Suppress("DEPRECATION")
+    private fun appVersion(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "desconocida"
+
+    private fun aboutScreen() {
+        remember("about", 4)
+        val c = root(); c.addView(header("Información de la aplicación", "Versión y alcance del prototipo"))
+        c.addView(infoCard("Mascotas Municipales", "Versión ${appVersion()} · aplicación Android nativa en Kotlin para Zipaquirá.", "🐾"))
+        c.addView(card().apply {
+            addView(heading("Propósito"))
+            addView(tv("Prototipo académico orientado a la Secretaría de Desarrollo Rural y Ambiente para registrar mascotas, reportar pérdidas o hallazgos, consultar fichas públicas y publicar jornadas aprobadas.", 13f))
+        })
+        c.addView(card().apply {
+            addView(heading("Privacidad"))
+            addView(tv("Las fichas públicas no muestran correo, teléfono, dirección ni contraseña. Los datos de acceso se gestionan mediante Firebase Authentication.", 13f))
+        })
+        c.addView(card().apply {
+            addView(heading("Tecnologías"))
+            addView(tv("Kotlin · Android API 33 · Firebase Authentication · Cloud Firestore · OpenStreetMap · lector QR de Google Play Services.", 13f))
+            addView(tv("Plan Firebase Spark sin facturación vinculada. OpenStreetMap se utiliza con atribución y caché limitada.", 12f, false, gray))
+        })
+        c.addView(infoCard("Alcance académico", "No representa una operación municipal en producción y utiliza únicamente información ficticia para las demostraciones.", "i"))
+        c.addView(secondaryButton("← VOLVER AL PERFIL") { profileMenu() })
+        show(scroll(c))
+    }
     private fun profileMenu() {
         remember("profile", 4)
         val c = root(); c.addView(header("Mi perfil", "Cuenta y preferencias"))
@@ -1148,7 +1335,7 @@ class MainActivity : AppCompatActivity() {
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             })
         })
-        c.addView(upcomingOption("Información de la aplicación"))
+        c.addView(button("INFORMACIÓN DE LA APLICACIÓN") { aboutScreen() })
         c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(upcomingOption("Información de tu cuenta"))
         c.addView(upcomingOption("Cambiar correo electrónico"))

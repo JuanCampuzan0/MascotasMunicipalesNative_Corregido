@@ -71,6 +71,15 @@ class MunicipalRepository {
             done(if (snap?.exists() == true) pet(snap) else null, snap?.metadata?.isFromCache ?: false, error?.localizedMessage)
         }
 
+    /** Consulta pública exacta y acotada para códigos QR; no abre un listener permanente. */
+    fun findPetByQrCode(code: String, done: (Pet?, Boolean, String?) -> Unit) {
+        db.collection("pets").whereEqualTo("qrCode", code).limit(1).get()
+            .addOnSuccessListener { snapshot ->
+                done(snapshot.documents.firstOrNull()?.let(::pet), snapshot.metadata.isFromCache, null)
+            }
+            .addOnFailureListener { done(null, false, it.localizedMessage ?: "No se pudo consultar el código") }
+    }
+
     fun observeReport(id: String, done: (Report?, Boolean, String?) -> Unit): ListenerRegistration =
         db.collection("reports").document(id).addSnapshotListener(MetadataChanges.INCLUDE) { snap, error ->
             done(if (snap?.exists() == true) report(snap) else null, snap?.metadata?.isFromCache ?: false, error?.localizedMessage)

@@ -33,6 +33,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-core:2.6.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")

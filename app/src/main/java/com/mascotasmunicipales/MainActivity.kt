@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.text.InputFilter
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.*
 import android.util.LruCache
@@ -26,11 +27,24 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.firestore.ListenerRegistration
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.CopyrightOverlay
+import org.osmdroid.views.overlay.Marker
+import java.io.File
 import java.text.DateFormat
 import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private val ZIPAQUIRA_CENTER = GeoPoint(5.021476, -73.990955)
+    }
+
     private lateinit var model: AppViewModel
     private val repo get() = model.repo
     private val teal get() = when {
@@ -70,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     private var updateDraftUi: (() -> Unit)? = null
     private var updateAuthUi: ((SessionState) -> Unit)? = null
     private val work = WorkRepository()
+    private var activeMap: MapView? = null
     private val photoCache = object : LruCache<Int, Bitmap>(4096) {
         override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount / 1024
     }
@@ -79,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         largeText = accessibilityPreferences.getBoolean("large_text", false)
         highContrast = accessibilityPreferences.getBoolean("high_contrast", false)
         colorblindPalette = accessibilityPreferences.getBoolean("colorblind_palette", false)
+        configureOpenStreetMap()
         accessibilityOpen = savedInstanceState?.getBoolean("accessibilityOpen") ?: false
         accessibilityScrollY = savedInstanceState?.getInt("accessibilityScrollY") ?: 0
         model = ViewModelProvider(this)[AppViewModel::class.java]
@@ -105,14 +121,15 @@ class MainActivity : AppCompatActivity() {
             }
         })
     }
-    override fun onPause() { model.flush(); super.onPause() }
+    override fun onResume() { super.onResume(); activeMap?.onResume() }
+    override fun onPause() { activeMap?.onPause(); model.flush(); super.onPause() }
     override fun onSaveInstanceState(outState: Bundle) {
         model.flush()
         outState.putBoolean("accessibilityOpen", accessibilityOpen)
         outState.putInt("accessibilityScrollY", (content.getChildAt(0) as? ScrollView)?.scrollY ?: 0)
         super.onSaveInstanceState(outState)
     }
-    override fun onDestroy() { clearListeners(); super.onDestroy() }
+    override fun onDestroy() { clearListeners(); releaseMap(); super.onDestroy() }
     private fun remember(route: String, selectedTab: Int = tab) {
         accessibilityOpen = route == "accessibility"
         tab = selectedTab; model.navigate(route)
@@ -155,6 +172,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
     private fun clearListeners() { listeners.forEach { it.remove() }; listeners.clear() }
+    private fun configureOpenStreetMap() {
+        val osm = Configuration.getInstance()
+        val base = File(cacheDir, "openstreetmap")
+        val tiles = File(base, "tiles")
+        tiles.mkdirs()
+        osm.userAgentValue = "MascotasMunicipales ($packageName)"
+        osm.osmdroidBasePath = base
+        osm.osmdroidTileCache = tiles
+        osm.tileFileSystemCacheMaxBytes = 24L * 1024L * 1024L
+        osm.tileFileSystemCacheTrimBytes = 20L * 1024L * 1024L
+    }
+    @Suppress("ClickableViewAccessibility")
+    private fun attachTerritoryMap(holder: FrameLayout) {
+        val map = MapView(this).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            setTilesScaledToDpi(true)
+            minZoomLevel = 11.0
+            maxZoomLevel = 18.0
+            setScrollableAreaLimitDouble(BoundingBox(5.18, -73.82, 4.86, -74.18))
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT)
+            controller.setZoom(14.0)
+            controller.setCenter(ZIPAQUIRA_CENTER)
+            contentDescription = "Mapa interactivo de Zipaquirá. Usa gestos para desplazar y ampliar."
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            overlays.add(Marker(this).apply {
+                position = ZIPAQUIRA_CENTER
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = "Zipaquirá"
+                snippet = "Centro de referencia municipal"
+            })
+            overlays.add(CopyrightOverlay(this@MainActivity).apply {
+                setCopyrightNotice("© OpenStreetMap contributors")
+            })
+            setOnTouchListener { view, event ->
+                view.parent?.requestDisallowInterceptTouchEvent(
+                    event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL
+                )
+                if (event.actionMasked == MotionEvent.ACTION_UP) view.performClick()
+                false
+            }
+        }
+        activeMap = map
+        holder.addView(map, FrameLayout.LayoutParams(-1, -1))
+        map.onResume()
+    }
+    private fun releaseMap() {
+        activeMap?.let { map ->
+            map.onPause()
+            map.onDetach()
+        }
+        activeMap = null
+    }
     private fun setPhoto(view: ImageView, resource: Int) {
         val bitmap = photoCache[resource] ?: BitmapFactory.decodeResource(resources, resource,
             BitmapFactory.Options().apply { inSampleSize = 2 })?.also { photoCache.put(resource, it) }
@@ -261,6 +331,7 @@ class MainActivity : AppCompatActivity() {
     }
     private fun show(v: View) {
         screenGeneration++; clearListeners(); updateDraftUi = null; updateAuthUi = null
+        releaseMap()
         content.removeAllViews(); content.addView(v)
         v.alpha = 0f; v.translationY = dp(8).toFloat()
         v.animate().alpha(1f).translationY(0f).setDuration(180L).start()
@@ -650,6 +721,22 @@ class MainActivity : AppCompatActivity() {
         remember("territory", 3)
         val c = root(); c.addView(header("Territorio", "Comunas del prototipo"))
         c.addView(infoCard("Zipaquirá", "División usada para clasificar registros. No se muestran cifras municipales sin verificar.", "⌖"))
+        c.addView(heading("Mapa de Zipaquirá"))
+        c.addView(tv("Mapa interactivo de referencia. Requiere internet la primera vez; las vistas recientes se conservan temporalmente en caché.", 12f, false, gray).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), 0, dp(14), dp(7)) }
+        })
+        val mapHolder = FrameLayout(this).apply {
+            background = rounded(if (highContrast) Color.WHITE else Color.rgb(224, 232, 235), 14, border, 1)
+            clipToOutline = true
+            layoutParams = LinearLayout.LayoutParams(-1, dp(310)).apply { setMargins(dp(12), dp(5), dp(12), dp(5)) }
+        }
+        c.addView(mapHolder)
+        c.addView(secondaryButton("CENTRAR MAPA EN ZIPAQUIRÁ") {
+            activeMap?.controller?.apply {
+                setZoom(14.0)
+                animateTo(ZIPAQUIRA_CENTER)
+            }
+        })
         c.addView(heading("Comunas disponibles"))
         TERRITORIES.forEachIndexed { index, territory -> c.addView(card().apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
@@ -662,6 +749,7 @@ class MainActivity : AppCompatActivity() {
         val eventMessage = messageView("Consultando jornadas y eventos…"); c.addView(eventMessage)
         val eventList = root(); c.addView(eventList)
         show(scroll(c))
+        attachTerritoryMap(mapHolder)
         val generation = screenGeneration
         repo.approvedEvents { events, cache, error ->
             if (generation != screenGeneration) return@approvedEvents

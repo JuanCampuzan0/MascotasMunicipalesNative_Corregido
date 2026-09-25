@@ -16,7 +16,13 @@ Implementa ingreso por rol, revisión y asignación administrativa, atenciones v
 
 ## Interfaz visual
 
-La interfaz conserva el turquesa original y ahora usa una jerarquía visual común en todas las áreas: encabezados con gradiente sutil, tarjetas con bordes y elevación ligera, formularios agrupados, estados en cápsulas, botones con respuesta táctil y navegación inferior con iconos vectoriales. Las transiciones animan una sola capa durante 180 ms para evitar trabajo por elemento en listas y respetan la escala de animación del sistema. Contraste alto, texto grande y paleta azul para daltonismo siguen aplicándose a los nuevos componentes. No se añadieron librerías visuales, servicios Firebase ni recursos de red.
+La interfaz conserva el turquesa original y ahora usa una jerarquía visual común en todas las áreas: encabezados con gradiente sutil, tarjetas con bordes y elevación ligera, formularios agrupados, estados en cápsulas, botones con respuesta táctil y navegación inferior con iconos vectoriales. Las transiciones animan una sola capa durante 180 ms para evitar trabajo por elemento en listas y respetan la escala de animación del sistema. Contraste alto, texto grande y paleta azul para daltonismo siguen aplicándose a los nuevos componentes.
+
+## Mapa territorial con OpenStreetMap
+
+**Territorio** incluye un mapa interactivo centrado en Zipaquirá mediante osmdroid 6.1.20 y las teselas estándar de OpenStreetMap. No necesita clave, cuenta, ubicación del dispositivo ni un servicio Firebase adicional. Muestra atribución visible, usa un identificador propio de la aplicación, limita la navegación a la zona de referencia y solo solicita las teselas que la persona visualiza. La caché se guarda en el directorio temporal de la app, con máximo de 24 MiB y recorte a 20 MiB; no existe descarga masiva ni modo sin conexión. El mapa libera sus recursos al abandonar la pantalla.
+
+La coordenada central de referencia (`5.021476, -73.990955`) procede de la ficha pública de Zipaquirá del Ministerio de Vivienda. El mapa requiere internet al consultar una zona no almacenada recientemente. Las teselas comunitarias son un servicio de disponibilidad no garantizada y deben utilizarse conforme a la [política oficial](https://operations.osmfoundation.org/policies/tiles/). osmdroid 6.1.20 es su última versión estable y el proyecto quedó archivado; se usa aquí por su tamaño moderado y compatibilidad con este prototipo Android.
 
 ## Recuperación y sesión (incluidas desde 1.2)
 
@@ -24,7 +30,7 @@ La interfaz conserva el turquesa original y ahora usa una jerarquía visual com�
 - `DraftStore` guarda un borrador de mascota y uno de reporte por UID, la pantalla actual y el regreso desde Perfil. Usa un archivo privado con escritura atómica en `noBackupFilesDir`; no guarda contraseñas ni se incluye en copias de seguridad. Guarda tras una pausa breve al escribir, al navegar, al pasar a segundo plano y antes de enviar.
 - Cada envío recibe un ID estable que se guarda **antes** de llamar a Firestore. El formulario queda bloqueado mientras se comprueba el envío. Reintentar conserva ID y contenido; solo **Registrar otra mascota / Crear otro reporte**, después de la confirmación, inicia un registro diferente.
 - Al reiniciar, la app espera que Firestore termine su cola pendiente y después consulta ese ID. Solo una respuesta de escritura exitosa o una lectura del servidor confirma la sincronización. La caché por sí sola no confirma. Un rechazo o una comprobación fallida mantiene el registro local y ofrece reintento; la ausencia de confirmación no se presenta como éxito.
-- Los borradores se recuperan al volver a la misma cuenta en el mismo dispositivo. No se sincronizan entre dispositivos. Desinstalar o borrar los datos de la app elimina estos borradores y su historial local. Un cierre abrupto antes del guardado puede perder los últimos 250 ms de edición; el ID de un envío se guarda de forma síncrona antes de encolarlo. Si ese guardado falla, se bloquea el envío.
+- Los borradores se recuperan al volver a la misma cuenta en el mismo dispositivo. No se sincronizan entre dispositivos. Desinstalar o borrar los datos de la app elimina estos borradores y su historial local. Un cierre abrupto antes del guardado puede perder los últimos 400 ms de edición; el ID de un envío se guarda de forma síncrona antes de encolarlo. Si ese guardado falla, se bloquea el envío.
 
 El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.4 (versionCode 5)**. Es una compilación **debug para demostración**, con la configuración Firebase normal del proyecto. La compilación temporal usada para las pruebas locales no está incluida.
 
@@ -39,7 +45,7 @@ El APK de `apk/MascotasMunicipalesNative-corregido.apk` corresponde a **1.4 (ver
 3. Para otro proyecto, revise `firestore.rules` y `firestore.indexes.json` y despliéguelos con autorización usando Firebase CLI y el ID real: `firebase deploy --only firestore:rules,firestore:indexes --project ID_REAL`.
 4. Abra esta carpeta en Android Studio, sincronice Gradle y compile con `gradlew.bat :app:assembleDebug`.
 
-Se usan AGP 9.3.1, Gradle 9.5, Kotlin integrado en AGP 9, Firebase BoM 34.19.0, Authentication y Firestore. No hay Storage, Functions, analítica ni servicio de pago. [Configuración oficial Android](https://firebase.google.com/docs/android/setup).
+Se usan AGP 9.3.1, Gradle 9.5, Kotlin integrado en AGP 9, Firebase BoM 34.19.0, Authentication, Firestore y osmdroid 6.1.20. No hay Storage, Functions, analítica ni servicio de pago. [Configuración oficial Android](https://firebase.google.com/docs/android/setup).
 
 ## Datos y permisos
 

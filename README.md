@@ -8,6 +8,10 @@ Implementa ingreso por rol, revisión y asignación administrativa, atenciones v
 
 **Pendiente de despliegue:** las nuevas reglas e índices incluidos en esta versión todavía NO se han publicado en Firebase remoto. El acceso profesional requiere ese despliegue autorizado y documentos `access/{uid}` aprobados manualmente. Los permisos antiguos `users.role = staff` no conceden acceso con estas reglas.
 
+## Interfaz visual
+
+La interfaz conserva el turquesa original y ahora usa una jerarquía visual común en todas las áreas: encabezados con gradiente sutil, tarjetas con bordes y elevación ligera, formularios agrupados, estados en cápsulas, botones con respuesta táctil y navegación inferior con iconos vectoriales. Las transiciones animan una sola capa durante 180 ms para evitar trabajo por elemento en listas y respetan la escala de animación del sistema. Contraste alto, texto grande y paleta azul para daltonismo siguen aplicándose a los nuevos componentes. No se añadieron librerías visuales, servicios Firebase ni recursos de red.
+
 ## Recuperación y sesión (incluidas desde 1.2)
 
 - `AppViewModel` conserva la sesión y las operaciones fuera de `MainActivity`. El ingreso tiene una sola transición a la aplicación, desactiva envíos repetidos y muestra errores de preparación del perfil con **Reintentar perfil**. La creación del perfil usa una transacción para tolerar el ingreso simultáneo desde dos dispositivos.

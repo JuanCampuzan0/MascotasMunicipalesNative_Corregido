@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputFilter
@@ -37,6 +38,17 @@ class MainActivity : AppCompatActivity() {
     private val bg get() = if (highContrast) Color.WHITE else Color.rgb(241, 246, 248)
     private val dark get() = if (highContrast) Color.BLACK else Color.rgb(32, 49, 58)
     private val gray get() = if (highContrast) Color.BLACK else Color.rgb(85, 100, 109)
+    private val border get() = if (highContrast) Color.BLACK else Color.rgb(214, 227, 232)
+    private val softTeal get() = when {
+        highContrast -> Color.WHITE
+        colorblindPalette -> Color.rgb(229, 239, 249)
+        else -> Color.rgb(226, 241, 244)
+    }
+    private val tealDark get() = when {
+        highContrast -> Color.BLACK
+        colorblindPalette -> Color.rgb(0, 69, 120)
+        else -> Color.rgb(14, 97, 114)
+    }
     private val textScale get() = if (largeText) 1.3f else 1f
     private val accessibilityPreferences by lazy { getSharedPreferences("accessibility", MODE_PRIVATE) }
     private var largeText = false
@@ -106,15 +118,18 @@ class MainActivity : AppCompatActivity() {
     private fun updateNavigation() {
         if (!::nav.isInitialized) return
         (0 until nav.childCount).forEach {
-            (nav.getChildAt(it) as TextView).apply {
+            (nav.getChildAt(it) as LinearLayout).apply {
                 val selected = model.ready && it == tab && !accessibilityOpen
-                setTextColor(if (selected && highContrast) Color.WHITE else if (selected) teal else gray)
-                typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
                 background = if (selected) GradientDrawable().apply {
-                    setColor(if (highContrast) Color.BLACK else Color.rgb(224, 240, 247))
-                    cornerRadius = dp(8).toFloat()
+                    setColor(if (highContrast) Color.BLACK else softTeal)
+                    cornerRadius = dp(14).toFloat()
                 } else null
-                contentDescription = if (selected) "$text, pestaña seleccionada" else "$text, abrir pestaña"
+                val icon = getChildAt(0) as ImageView
+                val label = getChildAt(1) as TextView
+                val color = if (selected && highContrast) Color.WHITE else if (selected) teal else gray
+                icon.imageTintList = ColorStateList.valueOf(color)
+                label.setTextColor(color); label.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                contentDescription = if (selected) "${label.text}, pestaña seleccionada" else "${label.text}, abrir pestaña"
             }
         }
     }
@@ -145,31 +160,48 @@ class MainActivity : AppCompatActivity() {
     private fun tv(value: String, size: Float = 14f, bold: Boolean = false, color: Int = dark) = TextView(this).apply {
         text = value; textSize = size * textScale; setTextColor(color)
         typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-        setPadding(dp(2), dp(2), dp(2), dp(2))
+        setPadding(dp(2), dp(3), dp(2), dp(3))
+        includeFontPadding = true
     }
     private fun heading(value: String, size: Float = 16f, color: Int = dark) = tv(value, size, true, color).apply {
         ViewCompat.setAccessibilityHeading(this, true)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(16), dp(18), dp(16), dp(6)) }
     }
-    private fun shape() = GradientDrawable().apply {
-        setColor(Color.WHITE); cornerRadius = dp(16).toFloat()
-        if (highContrast) setStroke(dp(2), Color.BLACK)
+    private fun rounded(fill: Int, radius: Int = 16, stroke: Int = border, strokeWidth: Int = 1) = GradientDrawable().apply {
+        setColor(fill); cornerRadius = dp(radius).toFloat()
+        if (strokeWidth > 0) setStroke(dp(if (highContrast) 2 else strokeWidth), stroke)
     }
-    private fun root() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
+    private fun shape() = rounded(Color.WHITE)
+    private fun root() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setBackgroundColor(bg); setPadding(0, 0, 0, dp(16))
+    }
     private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; background = shape(); setPadding(dp(14), dp(12), dp(14), dp(12))
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(6), dp(10), dp(6)) }
+        orientation = LinearLayout.VERTICAL; background = shape(); setPadding(dp(16), dp(14), dp(16), dp(14))
+        elevation = if (highContrast) 0f else dp(2).toFloat()
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(6), dp(12), dp(6)) }
     }
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
-        text = label; textSize = 13f * textScale; setTextColor(Color.WHITE); setBackgroundColor(teal)
+        text = label; textSize = 13f * textScale; setTextColor(Color.WHITE)
         typeface = Typeface.DEFAULT_BOLD; setOnClickListener { action() }
-        minHeight = dp(50)
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(7), dp(10), dp(7)) }
+        isAllCaps = false; minHeight = dp(52); stateListAnimator = null
+        val colors = ColorStateList(
+            arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+            intArrayOf(if (highContrast) Color.LTGRAY else Color.rgb(139, 184, 193), teal)
+        )
+        background = RippleDrawable(ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
+            GradientDrawable().apply { setColor(colors); cornerRadius = dp(14).toFloat() }, rounded(Color.WHITE, 14, Color.TRANSPARENT, 0))
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(7), dp(12), dp(7)) }
+    }
+    private fun secondaryButton(label: String, action: () -> Unit) = button(label, action).apply {
+        setTextColor(teal)
+        background = RippleDrawable(ColorStateList.valueOf(Color.argb(35, 20, 127, 149)),
+            rounded(if (highContrast) Color.WHITE else softTeal, 14, teal), rounded(Color.WHITE, 14, Color.TRANSPARENT, 0))
     }
     private fun field(hintValue: String, maxLength: Int = 2000) = EditText(this).apply {
-        hint = hintValue; background = shape(); setPadding(dp(14), dp(10), dp(14), dp(10))
+        hint = hintValue; background = rounded(Color.WHITE, 13); setPadding(dp(14), dp(11), dp(14), dp(11))
         textSize = 16f * textScale; minHeight = dp(52); setTextColor(dark); setHintTextColor(gray)
         filters = arrayOf(InputFilter.LengthFilter(maxLength))
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(10), dp(5), dp(10), dp(5)) }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(5), dp(12), dp(5)) }
     }
     private fun select(values: List<String>) = Spinner(this).apply {
         id = View.generateViewId()
@@ -185,18 +217,28 @@ class MainActivity : AppCompatActivity() {
                     minimumHeight = dp(48)
                 }
         }
-        minimumHeight = dp(50)
-        layoutParams = LinearLayout.LayoutParams(-1, -2)
+        minimumHeight = dp(52); background = rounded(Color.WHITE, 13)
+        setPadding(dp(8), 0, dp(8), 0)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(4), dp(12), dp(7)) }
     }
-    private fun spinnerLabel(label: String, spinner: Spinner) = tv(label, 14f, true).apply { labelFor = spinner.id }
-    private fun scroll(v: View) = ScrollView(this).apply { addView(v); isFillViewport = true }
+    private fun spinnerLabel(label: String, spinner: Spinner) = tv(label, 13f, true, gray).apply {
+        labelFor = spinner.id
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(8), dp(14), 0) }
+    }
+    private fun scroll(v: View) = ScrollView(this).apply {
+        addView(v); isFillViewport = true; clipToPadding = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+    }
     private fun header(title: String, subtitle: String = "") = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-        setBackgroundColor(teal); setPadding(dp(20), dp(18), dp(20), dp(18))
+        background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(tealDark, teal)).apply {
+            cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat())
+        }
+        elevation = if (highContrast) 0f else dp(3).toFloat()
+        setPadding(dp(20), dp(20), dp(16), dp(20))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
-            addView(heading(title, 21f, Color.WHITE))
-            if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE))
+            addView(heading(title, 22f, Color.WHITE).apply { layoutParams = LinearLayout.LayoutParams(-1, -2) })
+            if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE).apply { alpha = .88f })
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (model.ready) {
             val inProfile = model.screen in listOf("profile", "accessibility")
@@ -204,7 +246,7 @@ class MainActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 minHeight = dp(56); minWidth = dp(64)
                 contentDescription = if (accessibilityOpen) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
-                background = shape()
+                background = RippleDrawable(ColorStateList.valueOf(Color.argb(35, 20, 127, 149)), shape(), rounded(Color.WHITE, 14, Color.TRANSPARENT, 0))
                 setOnClickListener {
                     if (accessibilityOpen) profileMenu()
                     else if (inProfile) renderRoute(model.previousScreen)
@@ -213,7 +255,46 @@ class MainActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(-2, -2))
         }
     }
-    private fun show(v: View) { screenGeneration++; clearListeners(); updateDraftUi = null; updateAuthUi = null; content.removeAllViews(); content.addView(v) }
+    private fun show(v: View) {
+        screenGeneration++; clearListeners(); updateDraftUi = null; updateAuthUi = null
+        content.removeAllViews(); content.addView(v)
+        v.alpha = 0f; v.translationY = dp(8).toFloat()
+        v.animate().alpha(1f).translationY(0f).setDuration(180L).start()
+    }
+
+    private fun pill(value: String, positive: Boolean = true) = tv(value, 11f, true, if (highContrast) Color.BLACK else tealDark).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        val fill = if (highContrast) Color.WHITE else if (positive) softTeal else Color.rgb(235, 240, 242)
+        background = rounded(fill, 30,
+            if (highContrast) Color.BLACK else Color.TRANSPARENT, if (highContrast) 1 else 0)
+        setPadding(dp(10), dp(5), dp(10), dp(5))
+        layoutParams = LinearLayout.LayoutParams(-2, -2).apply { setMargins(0, dp(7), 0, 0) }
+    }
+
+    private fun infoCard(title: String, detail: String, symbol: String = "i") = card().apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        addView(tv(symbol, 18f, true, teal).apply {
+            gravity = Gravity.CENTER; background = rounded(softTeal, 24, Color.TRANSPARENT, 0)
+            minWidth = dp(42); minHeight = dp(42)
+        })
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0)
+            addView(tv(title, 14f, true)); addView(tv(detail, 12f, false, gray))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+    }
+
+    private fun metricCard(value: TextView, label: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; background = shape(); setPadding(dp(16), dp(14), dp(16), dp(14))
+        elevation = if (highContrast) 0f else dp(2).toFloat()
+        addView(value); addView(tv(label, 12f, false, gray))
+    }
+
+    private fun messageView(value: String) = tv(value, 12f, false, gray).apply {
+        background = rounded(if (highContrast) Color.WHITE else softTeal, 12, if (highContrast) Color.BLACK else Color.TRANSPARENT,
+            if (highContrast) 1 else 0)
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(7), dp(12), dp(7)) }
+    }
     @Suppress("DEPRECATION")
     private fun applySystemBars() {
         window.statusBarColor = teal
@@ -237,16 +318,32 @@ class MainActivity : AppCompatActivity() {
         applySystemBars()
         val r = root(); content = FrameLayout(this)
         r.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        nav = LinearLayout(this).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), dp(4), dp(4), dp(4)) }
-        listOf("Inicio", "Reportes", "Mascotas", "Territorio").forEachIndexed { i, label ->
-            nav.addView(tv(label, 11f, i == tab, if (i == tab) teal else gray).apply {
-                gravity = Gravity.CENTER; minHeight = dp(60)
-                setPadding(dp(2), dp(8), dp(2), dp(8))
+        nav = LinearLayout(this).apply {
+            setBackgroundColor(Color.WHITE); setPadding(dp(5), dp(6), dp(5), dp(6))
+            elevation = dp(8).toFloat()
+            visibility = if (model.ready) View.VISIBLE else View.GONE
+        }
+        val navItems = listOf(
+            Triple("Inicio", R.drawable.ic_nav_home, 0),
+            Triple("Reportes", R.drawable.ic_nav_report, 1),
+            Triple("Mascotas", R.drawable.ic_nav_pets, 2),
+            Triple("Territorio", R.drawable.ic_nav_map, 3)
+        )
+        navItems.forEach { (label, icon, i) ->
+            nav.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; minimumHeight = dp(62)
+                setPadding(dp(2), dp(7), dp(2), dp(5)); isClickable = true; isFocusable = true
+                addView(ImageView(this@MainActivity).apply {
+                    setImageResource(icon); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(dp(23), dp(23)))
+                addView(tv(label, 10f, i == tab, if (i == tab) teal else gray).apply {
+                    gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                })
                 contentDescription = if (i == tab) "$label, pestaña seleccionada" else "$label, abrir pestaña"
                 setOnClickListener { accessibilityOpen = false; tab = i; renderTab() }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
         }
-        r.addView(nav); setContentView(r)
+        r.addView(nav); setContentView(r); updateNavigation()
         when (model.session.value?.phase) {
             "ready" -> renderRoute(model.screen)
             "signedOut", "authenticating" -> if (accessibilityOpen) accessibilityScreen() else authScreen()
@@ -260,21 +357,29 @@ class MainActivity : AppCompatActivity() {
     private fun sessionScreen() {
         val session = model.session.value ?: SessionState("starting")
         val c = root(); c.addView(header("Tu cuenta", "Mascotas Municipales"))
-        c.addView(tv(session.message.ifBlank { "Preparando sesión…" }))
+        c.addView(infoCard("Preparando tu espacio", session.message.ifBlank { "Preparando sesión…" }, "⋯"))
         if (session.phase == "profileError") c.addView(button("REINTENTAR PERFIL") { model.prepareProfile() })
-        if (repo.uid != null) c.addView(button("CERRAR SESIÓN") { model.logout() })
+        if (repo.uid != null) c.addView(secondaryButton("CERRAR SESIÓN") { model.logout() })
         show(scroll(c))
     }
     private fun authScreen() {
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Registro e ingreso · Zipaquirá"))
-        val email = field("Correo electrónico").apply { inputType = 33 }; c.addView(email)
+        c.addView(heading("Bienvenido"))
+        c.addView(tv("Ingresa para registrar mascotas, crear reportes y consultar su seguimiento.", 14f, false, gray).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(16), 0, dp(16), dp(10)) }
+        })
+        val form = card()
+        form.addView(tv("Datos de acceso", 16f, true))
+        val email = field("Correo electrónico").apply { inputType = 33 }; form.addView(email)
         val password = field("Contraseña (mínimo 6 caracteres)").apply {
             inputType = 129; isSaveEnabled = false
-        }; c.addView(password)
-        val message = tv("", 12f, false, gray); c.addView(message)
+        }; form.addView(password)
+        val message = messageView(""); form.addView(message)
         val workspace = select(listOf("Ciudadano", "Veterinario", "Administrador de la dependencia"))
-        c.addView(spinnerLabel("Ingresar como", workspace)); c.addView(workspace)
-        c.addView(tv("Elegir una opción no concede permisos. Las cuentas profesionales requieren aprobación.", 12f))
+        form.addView(spinnerLabel("Ingresar como", workspace)); form.addView(workspace)
+        form.addView(tv("Elegir una opción no concede permisos. Las cuentas profesionales requieren aprobación.", 12f, false, gray).apply {
+            setPadding(dp(14), dp(5), dp(14), dp(8))
+        })
         val login = button("INGRESAR") {
             model.requestedWorkspace = listOf("citizen", "vet", "admin")[workspace.selectedItemPosition]
             model.authenticate(email.text.toString(), password.text.toString(), false)
@@ -283,8 +388,8 @@ class MainActivity : AppCompatActivity() {
             model.requestedWorkspace = "citizen"
             model.authenticate(email.text.toString(), password.text.toString(), true)
         }
-        c.addView(login); c.addView(register)
-        val accessibility = button("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
+        form.addView(login); form.addView(register); c.addView(form)
+        val accessibility = secondaryButton("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
         c.addView(accessibility)
         message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         show(scroll(c))
@@ -331,19 +436,21 @@ class MainActivity : AppCompatActivity() {
     private fun home() {
         remember("home", 0)
         val c = root(); c.addView(header("🐾 Mascotas Municipales", "Prototipo académico · Zipaquirá"))
-        c.addView(tv("Firestore conserva cambios locales sin conexión. Una escritura se confirma al responder el servidor.", 12f, false, Color.WHITE).apply {
-            setBackgroundColor(teal); setPadding(dp(20), dp(10), dp(20), dp(10))
-        })
-        c.addView(heading("Panorama del prototipo"))
+        c.addView(infoCard("Tus datos, incluso sin conexión", "Los cambios ciudadanos se conservan en este dispositivo y se confirman cuando responde Firebase.", "✓"))
+        c.addView(heading("Resumen"))
         val petsNumber = tv("Cargando…", 22f, true, teal)
         val reportsNumber = tv("Cargando…", 22f, true, teal)
-        c.addView(card().apply { addView(petsNumber); addView(tv("Mascotas registradas · hasta 1000")) })
-        c.addView(card().apply { addView(reportsNumber); addView(tv("Mis reportes abiertos")) })
+        c.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), 0, dp(8), 0)
+            addView(metricCard(petsNumber, "Mascotas registradas\nhasta 1000"), LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+            addView(metricCard(reportsNumber, "Mis reportes\nabiertos"), LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        })
         repo.petCount { count, _ -> petsNumber.text = count?.toString() ?: "Sin conexión" }
         repo.activeReportCount { count, _ -> reportsNumber.text = count?.toString() ?: "Sin conexión" }
+        c.addView(heading("Acciones rápidas"))
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
-        c.addView(button("ACCESO PROFESIONAL") { workHome() })
+        c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(heading("Registros recientes · máximo 3", 15f))
         val list = root(); c.addView(list)
         show(scroll(c))
@@ -361,16 +468,18 @@ class MainActivity : AppCompatActivity() {
         val res = photoResource(p.photoKey)
         if (res != 0) addView(ImageView(this@MainActivity).apply {
             setPhoto(this, res); scaleType = ImageView.ScaleType.CENTER_CROP
+            background = rounded(softTeal, 13, Color.TRANSPARENT, 0); clipToOutline = true
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LinearLayout.LayoutParams(dp(72), dp(72)))
+        }, LinearLayout.LayoutParams(dp(76), dp(76)))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, 0, 0)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             addView(tv(p.name, 16f, true))
             addView(tv("${p.species} · ${p.breed}", 12f, false, gray))
             addView(tv(territoryLabel(p.territoryId), 11f, false, gray))
-            addView(tv(state(p.pending, cache), 11f, false, teal))
-        })
+            addView(pill(state(p.pending, cache), !p.pending && !cache))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(tv("›", 26f, false, teal).apply { gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
     }
     private fun pets() {
         remember("pets", 2)
@@ -387,14 +496,16 @@ class MainActivity : AppCompatActivity() {
     private fun newPet() {
         remember("newPet", 2)
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
-        val name = field("Nombre", 80); c.addView(name)
-        val species = select(listOf("Perro", "Gato")); c.addView(spinnerLabel("Especie", species)); c.addView(species)
-        val breed = field("Raza", 80); c.addView(breed)
-        val sex = select(listOf("Hembra", "Macho", "No determinado")); c.addView(spinnerLabel("Sexo", sex)); c.addView(sex)
-        val age = field("Edad aproximada", 40); c.addView(age)
-        val color = field("Color", 80); c.addView(color)
-        val territory = select(TERRITORIES.map { it.label }); c.addView(spinnerLabel("Comuna", territory)); c.addView(territory)
-        val message = tv("Las fotos incluidas son solo demostrativas.", 12f, false, gray); c.addView(message)
+        c.addView(infoCard("Ficha pública", "Incluye únicamente datos descriptivos. No se publican datos de contacto.", "🐾"))
+        val form = card(); form.addView(tv("Información de la mascota", 16f, true))
+        val name = field("Nombre", 80); form.addView(name)
+        val species = select(listOf("Perro", "Gato")); form.addView(spinnerLabel("Especie", species)); form.addView(species)
+        val breed = field("Raza", 80); form.addView(breed)
+        val sex = select(listOf("Hembra", "Macho", "No determinado")); form.addView(spinnerLabel("Sexo", sex)); form.addView(sex)
+        val age = field("Edad aproximada", 40); form.addView(age)
+        val color = field("Color", 80); form.addView(color)
+        val territory = select(TERRITORIES.map { it.label }); form.addView(spinnerLabel("Comuna", territory)); form.addView(territory)
+        val message = messageView("Las fotos incluidas son solo demostrativas."); form.addView(message)
         val draft = model.petDraft
         bind(name, draft, "name"); bind(breed, draft, "breed"); bind(age, draft, "age"); bind(color, draft, "color")
         bind(species, draft, "species", listOf("Perro", "Gato"))
@@ -406,7 +517,7 @@ class MainActivity : AppCompatActivity() {
             } else model.submit("pet")
         }
         val another = button("REGISTRAR OTRA MASCOTA") { model.startAnother("pet"); newPet() }
-        c.addView(submit); c.addView(another)
+        form.addView(submit); form.addView(another); c.addView(form)
         show(scroll(c))
         attachSubmission("pet", message, submit, another, listOf(name, breed, age, color, species, sex, territory))
     }
@@ -424,15 +535,16 @@ class MainActivity : AppCompatActivity() {
             val res = photoResource(p.photoKey)
             if (res != 0) body.addView(ImageView(this).apply {
                 setPhoto(this, res); scaleType = ImageView.ScaleType.CENTER_CROP
+                background = rounded(softTeal, 18, Color.TRANSPARENT, 0); clipToOutline = true
                 contentDescription = "Fotografía ilustrativa de ${p.name}"
-            }, LinearLayout.LayoutParams(-1, dp(190)))
+            }, LinearLayout.LayoutParams(-1, dp(210)).apply { setMargins(dp(12), dp(12), dp(12), dp(4)) })
             body.addView(card().apply {
-                addView(tv(p.name, 24f, true)); addView(tv("${p.species} · ${p.breed}"))
-                addView(tv("Sexo: ${p.sex}\nEdad: ${p.age}\nColor: ${p.color}\nTerritorio: ${territoryLabel(p.territoryId)}\nEstado: ${p.status}\nCódigo: ${p.qrCode}"))
-                addView(tv(state(p.pending, cache), 12f, true, teal))
+                addView(tv(p.name, 24f, true)); addView(tv("${p.species} · ${p.breed}", 14f, false, gray))
+                addView(pill(p.status)); addView(tv("Sexo: ${p.sex}\nEdad: ${p.age}\nColor: ${p.color}\nTerritorio: ${territoryLabel(p.territoryId)}\nCódigo: ${p.qrCode}").apply { setLineSpacing(0f, 1.2f) })
+                addView(pill(state(p.pending, cache), !p.pending && !cache))
             })
-            body.addView(card().apply { addView(tv("🔒 Datos del responsable protegidos")); addView(tv("Esta ficha no contiene teléfono, dirección ni correo.")) })
-            body.addView(button("← VOLVER") { pets() })
+            body.addView(infoCard("Datos del responsable protegidos", "Esta ficha no contiene teléfono, dirección ni correo.", "🔒"))
+            body.addView(secondaryButton("← VOLVER") { pets() })
         })
     }
     private fun reports() {
@@ -453,13 +565,17 @@ class MainActivity : AppCompatActivity() {
                         contentDescription = "Abrir reporte de ${r.petName.ifBlank { "mascota sin identificar" }}, ${r.type}, ${r.status}, ${date(r.createdAt)}. ${state(r.pending, cache)}"
                         setOnClickListener { reportDetail(r.id) }
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                        addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 15f, true).apply {
-                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        addView(LinearLayout(this@MainActivity).apply {
+                            gravity = Gravity.CENTER_VERTICAL
+                            addView(tv(r.petName.ifBlank { "Mascota sin identificar" }, 16f, true).apply {
+                                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                            }, LinearLayout.LayoutParams(0, -2, 1f))
+                            addView(pill(r.type))
                         })
                         addView(tv("${r.status} · ${date(r.createdAt)}", 12f, false, gray).apply {
                             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                         })
-                        addView(tv(state(r.pending, cache), 11f, false, teal).apply {
+                        addView(pill(state(r.pending, cache), !r.pending && !cache).apply {
                             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                         })
                     }) }
@@ -471,16 +587,17 @@ class MainActivity : AppCompatActivity() {
     private fun newReport() {
         remember("newReport", 1)
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
-        c.addView(tv("📷 Foto: función simulada. No se suben imágenes.", 12f, false, gray))
-        val name = field("Nombre de mascota (si se conoce)", 80); c.addView(name)
-        val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); c.addView(spinnerLabel("Tipo de reporte", type)); c.addView(type)
-        val species = select(listOf("Perro", "Gato")); c.addView(spinnerLabel("Especie", species)); c.addView(species)
-        val territory = select(TERRITORIES.map { it.label }); c.addView(spinnerLabel("Ubicación (comuna)", territory)); c.addView(territory)
+        c.addView(infoCard("Reporte ciudadano", "Describe el caso con claridad. La función de fotografía sigue siendo simulada y no sube archivos.", "!"))
+        val form = card(); form.addView(tv("Información del reporte", 16f, true))
+        val name = field("Nombre de mascota (si se conoce)", 80); form.addView(name)
+        val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); form.addView(spinnerLabel("Tipo de reporte", type)); form.addView(type)
+        val species = select(listOf("Perro", "Gato")); form.addView(spinnerLabel("Especie", species)); form.addView(species)
+        val territory = select(TERRITORIES.map { it.label }); form.addView(spinnerLabel("Ubicación (comuna)", territory)); form.addView(territory)
         val desc = field("Describe lo que observaste", 2000).apply {
             minLines = 4; minimumHeight = dp(110); gravity = Gravity.TOP
-        }; c.addView(desc)
-        c.addView(tv("No incluyas datos personales de terceros.", 11f, false, gray))
-        val message = tv("", 12f, false, teal); c.addView(message)
+        }; form.addView(desc)
+        form.addView(tv("No incluyas datos personales de terceros.", 11f, false, gray).apply { setPadding(dp(14), dp(2), dp(14), dp(6)) })
+        val message = messageView(""); form.addView(message)
         val draft = model.reportDraft
         bind(name, draft, "name"); bind(desc, draft, "description")
         bind(type, draft, "type", listOf("Pérdida", "Encontrado", "Avistamiento"))
@@ -491,7 +608,7 @@ class MainActivity : AppCompatActivity() {
             else model.submit("report")
         }
         val another = button("CREAR OTRO REPORTE") { model.startAnother("report"); newReport() }
-        c.addView(submit); c.addView(another)
+        form.addView(submit); form.addView(another); c.addView(form)
         show(scroll(c))
         attachSubmission("report", message, submit, another, listOf(name, desc, type, species, territory))
     }
@@ -508,8 +625,8 @@ class MainActivity : AppCompatActivity() {
             }
             body.addView(card().apply {
                 addView(tv("${r.petName.ifBlank { "Mascota sin identificar" }} · ${r.type}", 20f, true))
-                addView(tv("Especie: ${r.species}\nComuna: ${territoryLabel(r.territoryId)}\nDescripción: ${r.description}\nEstado: ${r.status}\nFecha: ${date(r.createdAt)}"))
-                addView(tv(state(r.pending, cache), 12f, true, teal))
+                addView(pill(r.status)); addView(tv("Especie: ${r.species}\nComuna: ${territoryLabel(r.territoryId)}\nDescripción: ${r.description}\nFecha: ${date(r.createdAt)}").apply { setLineSpacing(0f, 1.2f) })
+                addView(pill(state(r.pending, cache), !r.pending && !cache))
             })
             if (r.status == "Abierto") body.addView(button("MARCAR RESUELTO") {
                 syncMessage = "Pendiente de sincronización"
@@ -518,22 +635,29 @@ class MainActivity : AppCompatActivity() {
                     toast(syncMessage)
                 }
             })
-            body.addView(button("← VOLVER") { reports() })
+            body.addView(secondaryButton("← VOLVER") { reports() })
             body.addView(button("VER SEGUIMIENTO DEL CASO") { citizenCase(id) })
         })
     }
     private fun territory() {
         remember("territory", 3)
         val c = root(); c.addView(header("Territorio", "Comunas del prototipo"))
-        c.addView(card().apply { addView(tv("Zipaquirá", 20f, true)); addView(tv("División usada para clasificar registros. Sin cifras municipales verificadas.")) })
-        TERRITORIES.forEach { c.addView(card().apply { addView(tv(it.label, 14f, true)) }) }
+        c.addView(infoCard("Zipaquirá", "División usada para clasificar registros. No se muestran cifras municipales sin verificar.", "⌖"))
+        c.addView(heading("Comunas disponibles"))
+        TERRITORIES.forEachIndexed { index, territory -> c.addView(card().apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(tv("${index + 1}", 15f, true, Color.WHITE).apply {
+                gravity = Gravity.CENTER; background = rounded(teal, 30, Color.TRANSPARENT, 0)
+            }, LinearLayout.LayoutParams(dp(42), dp(42)))
+            addView(tv(territory.label.substringAfter("· ", territory.label), 15f, true).apply { setPadding(dp(14), 0, 0, 0) })
+        }) }
         show(scroll(c))
     }
     private fun workHome() {
         remember("work", 4)
         val c = root(); c.addView(header("Acceso profesional", "Dependencia municipal · Zipaquirá"))
-        val message = tv("Verificando permisos con el servidor…"); c.addView(message)
-        c.addView(button("VOLVER A INICIO") { model.requestedWorkspace = "citizen"; home() })
+        val message = messageView("Verificando permisos con el servidor…"); c.addView(message)
+        c.addView(secondaryButton("VOLVER A INICIO") { model.requestedWorkspace = "citizen"; home() })
         show(scroll(c))
         val generation = screenGeneration; val account = repo.uid
         work.access { access, error ->
@@ -545,7 +669,7 @@ class MainActivity : AppCompatActivity() {
                 return@access
             }
             message.text = if (access.role == "admin") "Administrador de la dependencia" else "Veterinario"
-            c.addView(tv("Estas operaciones requieren conexión. Solo se confirma un cambio cuando responde el servidor. Usa únicamente datos ficticios.", 12f))
+            c.addView(infoCard("Operación conectada", "Los cambios se confirman únicamente cuando responde el servidor. Usa solo datos ficticios.", "↻"))
             if (access.role == "admin") {
                 c.addView(button("REVISAR REPORTES") { workList("reports", access) })
                 c.addView(button("EQUIPO VETERINARIO") { workList("access", access) })
@@ -558,8 +682,8 @@ class MainActivity : AppCompatActivity() {
         remember("work", 4)
         val title = when (kind) { "reports" -> "Reportes para revisión"; "access" -> "Equipo veterinario"; else -> "Casos y seguimientos" }
         val c = root(); c.addView(header(title, "20 por página · lectura del servidor"))
-        c.addView(button("VOLVER AL PANEL") { workHome() })
-        val message = tv("Cargando…"); c.addView(message); show(scroll(c))
+        c.addView(secondaryButton("VOLVER AL PANEL") { workHome() })
+        val message = messageView("Cargando…"); c.addView(message); show(scroll(c))
         val generation = screenGeneration; val account = repo.uid
         work.page(kind, access, cursor) { docs, error ->
             if (generation != screenGeneration || account != repo.uid) return@page
@@ -568,7 +692,8 @@ class MainActivity : AppCompatActivity() {
                 c.addView(card().apply {
                     if (kind == "access") {
                         addView(tv(doc.getString("displayName") ?: "Veterinario de demostración", 16f, true))
-                        addView(tv("UID: ${doc.id}\n${if (doc.getBoolean("active") == true) "Activo" else "Suspendido"}").apply { setTextIsSelectable(true) })
+                        addView(pill(if (doc.getBoolean("active") == true) "Activo" else "Suspendido", doc.getBoolean("active") == true))
+                        addView(tv("UID: ${doc.id}", 12f, false, gray).apply { setTextIsSelectable(true) })
                         addView(tv("Aprobaciones y revocaciones: responsable de Firebase, mediante procedimiento documentado.", 12f))
                     } else {
                         addView(tv(doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }, 16f, true))
@@ -599,8 +724,8 @@ class MainActivity : AppCompatActivity() {
     private fun workCase(id: String) {
         remember("workcase:$id", 4)
         val c = root(); c.addView(header("Caso municipal", "Información operativa · datos ficticios"))
-        val message = tv("Comprobando acceso y versión…"); c.addView(message)
-        c.addView(button("VOLVER AL PANEL") { workHome() }); show(scroll(c))
+        val message = messageView("Comprobando acceso y versión…"); c.addView(message)
+        c.addView(secondaryButton("VOLVER AL PANEL") { workHome() }); show(scroll(c))
         val generation = screenGeneration; val account = repo.uid
         fun current() = generation == screenGeneration && account == repo.uid
         work.access { access, error ->
@@ -686,8 +811,8 @@ class MainActivity : AppCompatActivity() {
     private fun citizenCase(id: String) {
         remember("report:$id", 1)
         val c = root(); c.addView(header("Seguimiento municipal"))
-        val message = tv("Consultando servidor…"); c.addView(message)
-        c.addView(button("VOLVER AL REPORTE") { reportDetail(id) }); show(scroll(c))
+        val message = messageView("Consultando servidor…"); c.addView(message)
+        c.addView(secondaryButton("VOLVER AL REPORTE") { reportDetail(id) }); show(scroll(c))
         val generation = screenGeneration; val account = repo.uid
         work.getCase(id) { doc, error ->
             if (generation == screenGeneration && account == repo.uid) message.text = error ?: if (doc == null)
@@ -697,9 +822,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun upcomingOption(title: String, detail: String = "") = card().apply {
-        addView(tv(title, 15f, true))
-        if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
-        addView(tv("Próximamente", 11f, true, teal))
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; alpha = .78f
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(tv(title, 15f, true))
+            if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(pill("Próximamente", false))
     }
     private fun accessibilityToggle(title: String, detail: String, key: String, checked: Boolean, update: (Boolean) -> Unit) = card().apply {
         addView(SwitchCompat(this@MainActivity).apply {
@@ -724,7 +853,8 @@ class MainActivity : AppCompatActivity() {
         if (model.ready) remember("accessibility", 4)
         applySystemBars()
         val c = root(); c.addView(header("Accesibilidad", "Ajustes guardados en este dispositivo"))
-        c.addView(heading("Personaliza la lectura y los colores"))
+        c.addView(infoCard("Una app que se adapta a ti", "Estos cambios solo se guardan en este dispositivo y no se envían a Firebase.", "A"))
+        c.addView(heading("Lectura y colores"))
         c.addView(accessibilityToggle("Texto más grande",
             "Aumenta el texto de la app y deja espacio para el tamaño de fuente configurado en Android.",
             "large_text", largeText) { largeText = it })
@@ -742,7 +872,7 @@ class MainActivity : AppCompatActivity() {
             try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
             catch (_: ActivityNotFoundException) { toast("Este dispositivo no tiene ajustes de accesibilidad disponibles.") }
         })
-        c.addView(button("← VOLVER") {
+        c.addView(secondaryButton("← VOLVER") {
             accessibilityOpen = false; accessibilityScrollY = 0
             if (!model.ready) authScreen() else profileMenu()
         })
@@ -754,8 +884,14 @@ class MainActivity : AppCompatActivity() {
         remember("profile", 4)
         val c = root(); c.addView(header("Mi perfil", "Cuenta y preferencias"))
         c.addView(card().apply {
-            addView(tv(repo.email, 16f, true))
-            addView(tv("Accesibilidad y Cerrar sesión están disponibles.", 12f, false, gray))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(tv(repo.email.take(1).uppercase(), 20f, true, Color.WHITE).apply {
+                gravity = Gravity.CENTER; background = rounded(teal, 40, Color.TRANSPARENT, 0)
+            }, LinearLayout.LayoutParams(dp(52), dp(52)))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, 0, 0)
+                addView(tv(repo.email, 16f, true)); addView(tv("Cuenta ciudadana", 12f, false, gray))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
         })
         c.addView(card().apply {
             isFocusable = true
@@ -767,12 +903,12 @@ class MainActivity : AppCompatActivity() {
             })
         })
         c.addView(upcomingOption("Información de la aplicación"))
-        c.addView(button("ACCESO PROFESIONAL") { workHome() })
+        c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(upcomingOption("Información de tu cuenta"))
         c.addView(upcomingOption("Cambiar correo electrónico"))
         c.addView(upcomingOption("Cambiar contraseña"))
         c.addView(upcomingOption("Cambiar información de tus mascotas"))
-        c.addView(button("CERRAR SESIÓN") {
+        c.addView(secondaryButton("CERRAR SESIÓN") {
             accessibilityOpen = false; model.logout()
         })
         show(scroll(c))

@@ -81,6 +81,8 @@ Accesibilidad también está disponible antes de iniciar sesión. Sus tres inter
 
 ## Emuladores y pruebas
 
+El taller de compatibilidad compara Android 7.0 (API 24) con Android 15 (API 35). La mejora de miniaturas conserva la resolución del detalle y las versiones actuales de SDK/dependencias. El alcance, las evidencias y las pruebas aún pendientes se registran en [tests/android-compatibility.md](tests/android-compatibility.md); compilar no demuestra por sí solo compatibilidad en ambos dispositivos.
+
 `firebase.json` configura Authentication y Firestore locales. Instale Node y Firebase CLI, ejecute `pnpm install` o `npm install`, y configure `FIREBASE_PROJECT_ID` con el ID **real** creado. En PowerShell:
 
 ```powershell

@@ -13,6 +13,7 @@ android {
         targetSdk = 33
         versionCode = 6
         versionName = "1.5"
+        testInstrumentationRunner = "com.mascotasmunicipales.PhotoCompatibilityInstrumentation"
     }
 
     compileOptions {

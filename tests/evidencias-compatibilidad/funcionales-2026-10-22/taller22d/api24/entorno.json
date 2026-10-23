@@ -1,0 +1,13 @@
+{
+  "api": 24,
+  "android": "7.0",
+  "model": "Android SDK built for x86_64",
+  "apkSha256": "3E1EC328C23B95E5B765D2ED94B435CFD14D0A93410ECD1414B0A796B87EC7B1",
+  "testApkSha256": "9E529557234A533DB5F905D22303D09380A04AB7DC67ADFCE76B9F7232A070A2",
+  "package": "com.mascotasmunicipales.compatqa",
+  "project": "demo-mascotas-compat",
+  "serial": "emulator-5554",
+  "runId": "taller22d",
+  "checkedAt": "2026-10-22T20:07:05.3955022-05:00",
+  "result": "APROBADO"
+}

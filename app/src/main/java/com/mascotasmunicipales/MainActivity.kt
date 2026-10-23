@@ -12,6 +12,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
+import android.os.Build
 import android.provider.Settings
 import android.text.InputFilter
 import android.view.Gravity
@@ -405,10 +406,12 @@ class MainActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     private fun applySystemBars() {
         window.statusBarColor = teal
-        window.navigationBarColor = bg
+        // Antes de API 26 Android solo dibuja iconos claros en esta barra.
+        val darkNavigationIcons = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        window.navigationBarColor = if (darkNavigationIcons) bg else tealDark
         WindowInsetsControllerCompat(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightNavigationBars = darkNavigationIcons
         }
     }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()

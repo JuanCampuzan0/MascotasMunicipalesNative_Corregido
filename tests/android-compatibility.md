@@ -2,7 +2,7 @@
 
 ## Punto de partida comprobado el 20 de octubre de 2026
 
-Estado: mejora de memoria implementada, compilada y comprobada en Android 7 y 15. Los tres recorridos funcionales completos siguen pendientes del equipo.
+Estado actualizado el 22 de octubre: mejora de memoria y contraste comprobados; tres recorridos completos aprobados en Android 7 y 15 con el mismo APK QA contra Firebase local. El APK normal también pasó instalación, arranque y prueba de fotos. Las evidencias del 20 de octubre que siguen describiendo pendientes son antecedentes históricos; los resultados nuevos y sus límites aparecen al final y en `android-functional-compatibility.md`.
 
 El usuario confirmó que el profesor asignó **Android 7.0 / API 24** y **Android 15 / API 35**. También confirmó las tres funciones que deben conservarse: inicio de sesión, registro/consulta de mascota y creación/consulta de reporte.
 
@@ -82,7 +82,7 @@ La instrumentación de `app/src/androidTest` no se incluye en el APK normal. Abr
 
 Los seriales anteriores son ejemplos: utilizar los que muestre `adb devices -l`. El script valida la API antes de instalar y genera evidencia en `tests/evidencias-compatibilidad/api24` o `api35`, con SHA-256 del APK, instalación, arranque, captura, memoria inicial y resultado de fotos. Se debe usar el mismo APK, sin recompilar entre ambos dispositivos. No ejecuta los tres recorridos funcionales completos.
 
-## Pendientes y entrega a Ricardo
+## Pendientes registrados el 20 de octubre de 2026
 
 La parte de implementación y la comprobación específica de memoria de Juan David quedan preparadas. El equipo debe completar lo siguiente antes de declarar terminado el taller:
 
@@ -99,4 +99,36 @@ En esta preparación se creó la rama, se ejecutó compilación y lint, se inspe
 
 Durante la preparación hubo problemas de herramientas: el descargador Java no avanzaba, se completaron las imágenes desde el servidor oficial y se verificaron sus hashes; se corrigió su registro local en el SDK y se indicó explícitamente el directorio de AVD. Estas incidencias no fueron errores de compilación ni incompatibilidades de la app.
 
-Codex propuso el ajuste del muestreo y preparó código y comprobaciones. Juan David debe revisar la decisión, observar las evidencias y explicar sus consecuencias con sus propias palabras. Quedan pendientes los recorridos funcionales completos del equipo y su reflexión individual. Esta bitácora no reemplaza esas evidencias ni su defensa personal.
+Codex propuso el ajuste del muestreo y preparó código y comprobaciones. Juan David debe revisar la decisión, observar las evidencias y explicar sus consecuencias con sus propias palabras. Al redactar el avance del 20 de octubre quedaban pendientes los recorridos y la reflexión. Los recorridos se completaron el 22 de octubre mediante automatización; las reflexiones personales siguen pendientes. Esta bitácora no reemplaza esas evidencias ni su defensa personal.
+
+
+## Recorridos completados el 22 de octubre de 2026
+
+Juan David continuó los recorridos inicialmente asignados a Ricardo, con instrumentación de los controles reales y datos ficticios. El protocolo reproducible está en [android-functional-compatibility.md](android-functional-compatibility.md).
+
+Se añadió una variante QA que comparte `src/main`, pero usa paquete `com.mascotasmunicipales.compatqa` y proyecto `demo-mascotas-compat` con Authentication y Firestore locales. No se alteró la conexión de la app normal, las reglas o índices remotos, ni se desplegaron datos. Los dos APK son distintos: los recorridos completos prueban QA local, no el servidor remoto.
+
+También se corrigió el contraste de la barra del sistema: antes de API 26 se usa `tealDark` de la paleta actual con iconos claros; desde API 26 se mantiene fondo claro y solicitud de iconos oscuros. La revisión visual de todas las combinaciones de accesibilidad sigue fuera de estas pruebas.
+
+| Comprobación final | Android 7 API 24 | Android 15 API 35 |
+| --- | --- | --- |
+| Registro, salida, ingreso y salida final | Aprobado | Aprobado |
+| Alta y consulta de mascota con confirmación local del servidor | Aprobado | Aprobado |
+| Alta y consulta de reporte con confirmación local del servidor | Aprobado | Aprobado |
+| Rechazo de lectura de reporte de otra cuenta | PERMISSION_DENIED | PERMISSION_DENIED |
+| Pendiente ausente del servidor mientras Firestore está sin red | Comprobado | Comprobado |
+| Mismo ID tras detener el proceso y reabrir | Comprobado | Comprobado |
+| Reconexion y recuento propio final | 1 mascota y 2 reportes | 1 mascota y 2 reportes |
+| Mediana de tres muestras PSS del directorio | 63,9 MiB | 116,2 MiB |
+| Mediana de tres muestras PSS del mapa | 67,7 MiB | 121,4 MiB |
+| APK normal: instalación, arranque y bitmaps | Aprobado | Aprobado |
+
+El mapa mostró teselas en las capturas de ambos. En este recorrido tuvo más PSS que el directorio. Las muestras incluyen instrumentación, caché y efectos del orden de navegación; no prueban CPU, batería, rendimiento en teléfonos físicos ni el máximo consumo de toda la app. El 75 % sigue refiriéndose únicamente a los cuatro bitmaps, no a toda la memoria del proceso.
+
+Mismo APK QA en ambas APIs: `apk/MascotasMunicipales-QA-local-2026-10-22.apk`, SHA-256 `3E1EC328C23B95E5B765D2ED94B435CFD14D0A93410ECD1414B0A796B87EC7B1`. APK normal actualizado, también idéntico entre sus dos comprobaciones: `apk/MascotasMunicipales-compatibilidad-2026-10-22.apk`, SHA-256 `2ABB17D05AEF2A0624C9E364658CAAB7BA6AF2D45938636FBFADE744956AC0BF`.
+
+Evidencia final: `evidencias-compatibilidad/funcionales-2026-10-22/taller22d/api24` y `api35`, con 12 capturas por API, resultados JSON y comprobaciones externas del servidor. `normal-api24` y `normal-api35` identifican el APK normal. Se conservan registros de los intentos previos; el Logcat histórico de API 24 incluye el fallo inicial de configuración de QA y no debe confundirse con un fallo del recorrido final. `android-runtime.txt` de taller22d está delimitado por hora de inicio; los mensajes anteriores quedan aparte.
+
+Validación final: `assembleDebug`, `lintDebug`, `assembleDebugAndroidTest`, `assembleCompatibility`, `assembleCompatibilityAndroidTest`, `lintCompatibility` aprobados; ambos lint tienen 0 errores y 40 advertencias. Las 33 pruebas de reglas pasaron en el servidor local antes de sembrar las fichas de recorrido. No se repitieron contra producción.
+
+Quedan las cuatro reflexiones individuales de 100 a 150 palabras, revisión y defensa del grupo, y entrega del proyecto o su enlace junto con el informe/APK. QR con cámara, todos los modos de accesibilidad y roles profesionales no se recorrieron de nuevo. El taller Offline First con persistencia propia y sincronización manual a RTDB sigue pendiente y separado.

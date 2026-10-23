@@ -3,6 +3,8 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val compatibilityTests = providers.gradleProperty("compatibilityTests").isPresent
+
 android {
     namespace = "com.mascotasmunicipales"
     compileSdk = 35
@@ -13,7 +15,9 @@ android {
         targetSdk = 33
         versionCode = 6
         versionName = "1.5"
-        testInstrumentationRunner = "com.mascotasmunicipales.PhotoCompatibilityInstrumentation"
+        testInstrumentationRunner = if (compatibilityTests)
+            "com.mascotasmunicipales.FunctionalCompatibilityInstrumentation"
+        else "com.mascotasmunicipales.PhotoCompatibilityInstrumentation"
     }
 
     compileOptions {
@@ -27,7 +31,14 @@ android {
                 signingConfig = null
             }
         }
+        create("compatibility") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".compatqa"
+            versionNameSuffix = "-qa-local"
+            matchingFallbacks += listOf("debug")
+        }
     }
+    testBuildType = if (compatibilityTests) "compatibility" else "debug"
 }
 dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel:2.6.2")

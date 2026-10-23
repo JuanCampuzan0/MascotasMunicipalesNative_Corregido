@@ -1,0 +1,15 @@
+INSTRUMENTATION_STATUS: fase=Registro e inicio de sesión
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: fase=Registro y consulta de mascota
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: fase=Creación y consulta de reporte
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: fase=Observación de memoria del directorio y mapa
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: fase=Reporte sin red y doble envío bloqueado
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: fase=Pendiente conservado; listo para reinicio real del proceso
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_RESULT: evidence=/storage/emulated/0/Android/data/com.mascotasmunicipales.compatqa/files/compatibility/taller22d
+INSTRUMENTATION_RESULT: resultado=APROBADO
+INSTRUMENTATION_CODE: -1

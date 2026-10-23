@@ -3,9 +3,16 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 import hashlib
 import json
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--with-defense-drafts', action='store_true')
+args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'documentos/Entrega_Compatibilidad_Verificada_2026-10-22.zip'
+if args.with_defense_drafts:
+    OUT = ROOT / 'documentos/Entrega_Compatibilidad_Con_Reflexiones_Para_Revisar.zip'
 EVIDENCE = ROOT / 'tests/evidencias-compatibilidad/funcionales-2026-10-22'
 files = {}
 def include(path, target):
@@ -17,6 +24,9 @@ qa = ROOT / 'apk/MascotasMunicipales-QA-local-2026-10-22.apk'
 doc = ROOT / 'documentos/Taller_Compatibilidad_Android_Resultados_2026-10-22.docx'
 include(normal, normal.name)
 include(doc, doc.name)
+if args.with_defense_drafts:
+    guide = ROOT / 'documentos/Reflexiones_Borrador_y_Guia_Sustentacion.docx'
+    include(guide, 'preparacion/' + guide.name)
 include(qa, 'pruebas-locales/' + qa.name)
 include(ROOT / 'app/build/outputs/apk/androidTest/compatibility/app-compatibility-androidTest.apk', 'pruebas-locales/app-compatibility-androidTest.apk')
 for name in ['.gitignore', 'README.md', 'ROLES.md', 'build.gradle.kts', 'settings.gradle.kts',
@@ -63,6 +73,11 @@ Antes de la entrega
 Faltan las cuatro reflexiones individuales de 100 a 150 palabras. Cada integrante debe escribir la suya, revisar la evidencia y preparar la sustentación. Incorporarlas al Word y volver a guardar el documento antes de enviarlo. Este ZIP no debe presentarse como entrega completa de las reflexiones.
 El taller Offline First de GUARDAR local y SINCRONIZAR manual hacia RTDB sigue pendiente y es otro requerimiento.
 '''
+if args.with_defense_drafts:
+    readme = readme.replace(
+        'Faltan las cuatro reflexiones individuales de 100 a 150 palabras. Cada integrante debe escribir la suya, revisar la evidencia y preparar la sustentación. Incorporarlas al Word y volver a guardar el documento antes de enviarlo. Este ZIP no debe presentarse como entrega completa de las reflexiones.',
+        'La carpeta preparacion incluye cuatro BORRADORES de reflexión de 100 a 150 palabras y una guía de sustentación. Cada integrante debe revisar y personalizar su propio texto, comprobar el número de palabras e incorporar la versión aprobada al Word del informe antes de enviarlo. La reflexión de Ricardo describe su tarea asignada y los resultados del grupo, sin afirmar que haya ejecutado las pruebas. Estos borradores no equivalen a reflexiones individuales aprobadas; el informe técnico se conserva sin atribuirles aprobación.'
+    )
 
 with ZipFile(OUT, 'w', ZIP_DEFLATED, compresslevel=6) as z:
     z.writestr('LEER_PRIMERO.txt', readme.encode('utf-8-sig'))

@@ -1,5 +1,7 @@
 # Corrección del Run real de Android Studio
 
+**Actualización posterior del mismo día:** se recuperó el panel integrado y se comprobaron ambos Android con Run. Esta página conserva el antecedente de las ventanas independientes. El estado vigente se describe en [Recuperación del panel integrado](../recuperacion-panel-integrado-2026-10-25/LEEME.md).
+
 ## Fallo confirmado después de la primera reparación
 
 El usuario volvió a obtener `Device did not start` al pulsar Run con API 24. El registro de las 07:35–07:41 del 25 de octubre muestra que la anulación de Vulkan sí estaba activa, pero Android Studio seguía agotando los 300 segundos de espera. Por tanto, las pruebas anteriores por terminal no demostraban que el Run real del IDE estuviera corregido. Se conserva ese intento en `studio-fallo-antes.txt`.

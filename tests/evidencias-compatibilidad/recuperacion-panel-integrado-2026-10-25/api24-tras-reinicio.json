@@ -1,0 +1,11 @@
+{
+  "fecha": "2026-10-25T08:29:53.6688393-05:00",
+  "api": "24",
+  "sysBoot": "1",
+  "devBoot": "1",
+  "pid": "2547",
+  "actividad": [
+    "    mResumedActivity: ActivityRecord{5909975 u0 com.mascotasmunicipales/.MainActivity t28}"
+  ],
+  "origen": "Run real posterior al cierre y reapertura de Studio"
+}

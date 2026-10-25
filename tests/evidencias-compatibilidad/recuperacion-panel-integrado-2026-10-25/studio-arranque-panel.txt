@@ -1,0 +1,8 @@
+2026-10-25 08:21:57,357 [ 303024]   INFO - Emulator: Mascotas Compat API35 - C:\Users\jcamp\AppData\Local\Android\Sdk\emulator\emulator.exe -netdelay none -netspeed full -no-snapstorage -avd Mascotas_Compat_API35 -qt-hide-window -grpc-use-token -idle-grpc-timeout 300
+2026-10-25 08:22:00,215 [ 305882]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-25 08:22:03,867 [ 309534]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 6 s 584 ms
+2026-10-25 08:22:52,880 [ 358547]   INFO - #com.android.tools.idea.run.activity.launch.ActivityLaunchOptionState - Activating Activity 'com.mascotasmunicipales.MainActivity'  on device emulator-5554
+2026-10-25 08:23:54,007 [ 419674]   INFO - Emulator: Mascotas Compat API24 - C:\Users\jcamp\AppData\Local\Android\Sdk\emulator\emulator.exe -netdelay none -netspeed full -no-snapstorage -avd Mascotas_Compat_API24 -qt-hide-window -grpc-use-token -idle-grpc-timeout 300
+2026-10-25 08:23:56,397 [ 422064]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 2 s 605 ms
+2026-10-25 08:23:56,783 [ 422450]   INFO - Emulator: Mascotas Compat API24 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-25 08:24:48,270 [ 473937]   INFO - #com.android.tools.idea.run.activity.launch.ActivityLaunchOptionState - Activating Activity 'com.mascotasmunicipales.MainActivity'  on device emulator-5554

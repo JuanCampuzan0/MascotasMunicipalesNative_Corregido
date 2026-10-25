@@ -1,5 +1,7 @@
 # Reparación de arranque del 25 de octubre de 2026
 
+**Actualización posterior:** el usuario volvió a obtener el fallo desde Android Studio después de estas pruebas por terminal. Se corrigió adicionalmente la preferencia del emulador integrado y se probaron ambos AVD con el botón Run real. El resultado vigente y la forma de usarlo están en [la reparación del IDE](../reparacion-studio-2026-10-25/LEEME.md). Las pruebas de esta carpeta se conservan como antecedente, no como demostración suficiente del Run real.
+
 Android Studio mostraba `Device did not start` al intentar utilizar los AVD del taller. Se encontró un proceso de API 35 atascado, inicialmente `offline`, y el historial de API 24 registraba un cierre con código `1073741845` antes de ejecutar la aplicación. WHPX pasó sus comprobaciones y había memoria y disco disponibles. No se atribuye ese cierre a un error Kotlin ni se identifica una causa única del cierre anterior de API 24.
 
 ## Corrección aplicada

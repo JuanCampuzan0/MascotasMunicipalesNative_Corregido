@@ -81,6 +81,8 @@ Accesibilidad también está disponible antes de iniciar sesión. Sus tres inter
 
 ## Emuladores y pruebas
 
+**Arranque local reparado el 25 de octubre de 2026:** ante `Device did not start`, se retiró el proceso atascado y se configuró explícitamente `Vulkan = off` en `C:\Users\jcamp\.android\advancedFeatures.ini`. Android 7 y 15 terminaron de arrancar y abrieron la aplicación con sus datos conservados. Este ajuste gráfico pertenece al emulador del usuario, no al APK. Utilizar un AVD a la vez. [Diagnóstico, evidencias y reversión](tests/evidencias-compatibilidad/reparacion-emuladores-2026-10-25/LEEME.md).
+
 El taller de compatibilidad compara Android 7.0 (API 24) con Android 15 (API 35). La mejora de miniaturas conserva la resolución del detalle y las versiones actuales de SDK/dependencias. El alcance y las evidencias se registran en [tests/android-compatibility.md](tests/android-compatibility.md). El 22 de octubre pasaron los tres recorridos en ambos Android con el mismo APK QA dirigido a Authentication y Firestore locales; el APK normal pasó instalación, arranque y fotos en ambos. La variante QA comparte el código principal, usa paquete/configuración separados y no se conecta al backend remoto. [Protocolo y límites](tests/android-functional-compatibility.md). Compilar por sí solo no demuestra compatibilidad.
 
 `firebase.json` configura Authentication y Firestore locales. Instale Node y Firebase CLI, ejecute `pnpm install` o `npm install`, y configure `FIREBASE_PROJECT_ID` con el ID **real** creado. En PowerShell:

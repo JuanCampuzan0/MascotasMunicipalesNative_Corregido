@@ -1,0 +1,20 @@
+2026-10-25 06:58:52,153 [ 103740]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-25 06:58:52,153 [ 103740]   INFO - Emulator: Mascotas Compat API35 - Critical: Failed to load opengl32sw (No se puede encontrar el módulo especificado.) (:0, )
+2026-10-25 06:58:52,153 [ 103740]   INFO - Emulator: Mascotas Compat API35 - Warning: Software OpenGL failed. Falling back to system OpenGL. (:0, )
+2026-10-25 06:58:52,153 [ 103740]   INFO - Emulator: Mascotas Compat API35 - Selecting Vulkan device: SwiftShader Device (LLVM 10.0.0), Version: 1.2.0
+2026-10-25 06:58:52,535 [ 104122]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] is offline (device state is `OFFLINE`)
+2026-10-25 06:59:04,940 [ 116527]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] has come online
+2026-10-25 06:59:16,186 [ 127773]   WARN - #com.android.sdklib.deviceprovisioner.LocalEmulatorProvisionerPlugin - [Mascotas Compat API35 (5554)] Failed to read boot status
+2026-10-25 07:00:55,695 [ 227282]   WARN - EmulatorController: Mascotas Compat API35 - android.emulation.control.EmulatorController/getVmState call failed - DEADLINE_EXCEEDED: CallOptions deadline exceeded after 2.999923900s. Name resolution delay 0.000000000 seconds. [closed=[], open=[[buffered_nanos=410000, remote_addr=localhost/127.0.0.1:8554]]]
+2026-10-25 07:04:04,963 [ 416550]   INFO - #c.i.e.r.ExecutionUtil - Error running 'app':<br>Device did not start
+2026-10-25 07:06:22,363 [ 553950]   INFO - Emulator: Mascotas Compat API24 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-25 07:06:22,363 [ 553950]   INFO - Emulator: Mascotas Compat API24 - Critical: Failed to load opengl32sw (No se puede encontrar el módulo especificado.) (:0, )
+2026-10-25 07:06:22,363 [ 553950]   INFO - Emulator: Mascotas Compat API24 - Warning: Software OpenGL failed. Falling back to system OpenGL. (:0, )
+2026-10-25 07:06:22,674 [ 554261]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5556] is offline (device state is `OFFLINE`)
+2026-10-25 07:06:26,262 [ 557849]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5556] has come online
+2026-10-25 07:06:26,849 [ 558436]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5556] is offline (device state is `OFFLINE`)
+2026-10-25 07:06:26,887 [ 558474]   WARN - Emulator: Mascotas Compat API24 - Emulator terminated with exit code 1073741845
+2026-10-25 07:06:27,115 [ 558702]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5556] is offline (device state is `DISCONNECTED`)
+2026-10-25 07:06:27,327 [ 558914]   WARN - #com.android.sdklib.deviceprovisioner.LocalEmulatorProvisionerPlugin - [Mascotas Compat API24 (5556)] Failed to read boot status
+2026-10-25 07:11:26,268 [ 857855]   WARN - #c.i.e.r.ExecutionUtil - Suppressed a frequent exception logged for the 2nd time: Device did not start
+2026-10-25 07:15:27,848 [1099435]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] has come online

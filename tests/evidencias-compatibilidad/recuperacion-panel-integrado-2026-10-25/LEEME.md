@@ -1,5 +1,7 @@
 # Recuperación del inicio de Studio y del panel integrado
 
+**Reincidencia el 26 de octubre:** el emulador API 35 volvió a cerrarse con `0xC0000005`. Los resultados de esta página describen las pruebas del día 25 y no constituyen una reparación estable. Se conserva el antecedente; el cambio posterior de renderizador se registra en [Reincidencia del emulador](../reincidencia-emulador-2026-10-26/LEEME.md).
+
 ## Problemas observados
 
 Después de usar temporalmente los emuladores en ventanas separadas, se intentó recuperar Running Devices. Android Studio presentó `Start Failed`, con `FileSystemException` al acceder a `C:\Users\jcamp\AppData\Local\Google\AndroidStudio2026.1.4\.port` durante `DirectoryLock.lockOrActivate`. El archivo seguía inaccesible después de cerrar las instancias fallidas. No se estableció la causa original de ese bloqueo.

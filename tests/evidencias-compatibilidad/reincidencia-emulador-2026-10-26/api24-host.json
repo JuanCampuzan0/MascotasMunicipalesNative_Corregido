@@ -1,0 +1,11 @@
+{
+  "fecha": "2026-10-26T11:25:50.9766507-05:00",
+  "api": "24",
+  "sys": "1",
+  "dev": "1",
+  "pid": "2574",
+  "actividad": [
+    "    mResumedActivity: ActivityRecord{e546499 u0 com.mascotasmunicipales/.MainActivity t30}"
+  ],
+  "origen": "Run IDE integrado, GPU host"
+}

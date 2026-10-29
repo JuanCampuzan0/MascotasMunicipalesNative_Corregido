@@ -1,0 +1,33 @@
+{
+  "api": 35,
+  "android": "15",
+  "package": "com.mascotasmunicipales.compatqa",
+  "project": "demo-mascotas-compat",
+  "runId": "taller22c",
+  "mode": "run",
+  "uid": "DmuGv3iypCk4hIddIQIGZLpeOV5l",
+  "login": true,
+  "foreignReportDenied": true,
+  "navigationBarColor": -919816,
+  "petName": "Mascota API 35 taller22c",
+  "petId": "5d909dce36c34e2aac8f05e5fcae828f",
+  "petServerConfirmed": true,
+  "petDetail": true,
+  "reportId": "28cb2e399bed472a99d197757114d34b",
+  "reportServerConfirmed": true,
+  "reportDetail": true,
+  "directoryPssKiB": [
+    119599,
+    119447,
+    119288
+  ],
+  "mapPssKiB": [
+    120934,
+    120808,
+    120803
+  ],
+  "pendingId": "0817944c89374e979668b10f8a2959d7",
+  "pendingName": "Pendiente API 35 taller22c",
+  "duplicateButtonBlocked": true,
+  "result": "APROBADO"
+}

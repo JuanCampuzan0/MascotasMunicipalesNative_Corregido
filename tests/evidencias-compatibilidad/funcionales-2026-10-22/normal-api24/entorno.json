@@ -1,0 +1,8 @@
+{
+  "api": 24,
+  "android": "7.0",
+  "modelo": "Android SDK built for x86_64",
+  "apkSha256": "2ABB17D05AEF2A0624C9E364658CAAB7BA6AF2D45938636FBFADE744956AC0BF",
+  "fecha": "2026-10-22T20:07:18.2214901-05:00",
+  "alcance": "Instalación, arranque y bitmaps si se solicitaron. Las tres funciones requieren su recorrido propio."
+}

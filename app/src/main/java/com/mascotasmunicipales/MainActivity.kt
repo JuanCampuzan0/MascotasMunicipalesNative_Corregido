@@ -506,6 +506,7 @@ class MainActivity : AppCompatActivity() {
         val accessibility = secondaryButton("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
         c.addView(accessibility)
         c.addView(secondaryButton("CONSULTAR MASCOTA POR QR") { qrLookupScreen() })
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         show(scroll(c))
         updateAuthUi = { session ->
@@ -566,6 +567,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
         c.addView(button("CONSULTAR QR") { qrLookupScreen() })
+        c.addView(button("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(heading("Registros recientes · máximo 3", 15f))
         val list = root(); c.addView(list)
@@ -643,10 +645,16 @@ class MainActivity : AppCompatActivity() {
             renderPets()
         })
     }
+    private fun recognizeAnimal() {
+        model.flush()
+        startActivity(Intent(this, AnimalRecognitionActivity::class.java))
+    }
+
     private fun newPet() {
         remember("newPet", 2)
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
         c.addView(infoCard("Ficha pública", "Incluye únicamente datos descriptivos. No se publican datos de contacto.", "🐾"))
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         val form = card(); form.addView(tv("Información de la mascota", 16f, true))
         val name = field("Nombre", 80); form.addView(name)
         val species = select(listOf("Perro", "Gato")); form.addView(spinnerLabel("Especie", species)); form.addView(species)
@@ -838,7 +846,8 @@ class MainActivity : AppCompatActivity() {
     private fun newReport() {
         remember("newReport", 1)
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
-        c.addView(infoCard("Reporte ciudadano", "Describe el caso con claridad. La función de fotografía sigue siendo simulada y no sube archivos.", "!"))
+        c.addView(infoCard("Reporte ciudadano", "Describe el caso con claridad. Reconocer animal analiza una foto local, pero no la adjunta ni la publica en este reporte.", "!"))
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         val form = card(); form.addView(tv("Información del reporte", 16f, true))
         val name = field("Nombre de mascota (si se conoce)", 80); form.addView(name)
         val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); form.addView(spinnerLabel("Tipo de reporte", type)); form.addView(type)
@@ -1316,10 +1325,11 @@ class MainActivity : AppCompatActivity() {
         c.addView(card().apply {
             addView(heading("Privacidad"))
             addView(tv("Las fichas públicas no muestran correo, teléfono, dirección ni contraseña. Los datos de acceso se gestionan mediante Firebase Authentication.", 13f))
+            addView(tv("Reconocer animal procesa la foto en este dispositivo y conserva solo la última imagen de esa herramienta. Puedes eliminarla allí; no se adjunta a una ficha ni se envía a Firebase.", 13f))
         })
         c.addView(card().apply {
             addView(heading("Tecnologías"))
-            addView(tv("Kotlin · Android API 33 · Firebase Authentication · Cloud Firestore · OpenStreetMap · lector QR de Google Play Services.", 13f))
+            addView(tv("Kotlin · Android API 33 · Firebase Authentication · Cloud Firestore · OpenStreetMap · lector QR de Google Play Services · reconocimiento local de imágenes con ML Kit.", 13f))
             addView(tv("Plan Firebase Spark sin facturación vinculada. OpenStreetMap se utiliza con atribución y caché limitada.", 12f, false, gray))
         })
         c.addView(infoCard("Alcance académico", "No representa una operación municipal en producción y utiliza únicamente información ficticia para las demostraciones.", "i"))

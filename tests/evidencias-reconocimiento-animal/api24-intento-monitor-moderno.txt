@@ -1,0 +1,6 @@
+INSTRUMENTATION_RESULT: error=java.lang.IllegalStateException: No apareció: un perro
+	at com.mascotasmunicipales.AnimalRecognitionInstrumentation.onStart$waitFor(AnimalRecognitionInstrumentation.kt:103)
+	at com.mascotasmunicipales.AnimalRecognitionInstrumentation.onStart(AnimalRecognitionInstrumentation.kt:132)
+	at android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:1932)
+
+INSTRUMENTATION_CODE: 0

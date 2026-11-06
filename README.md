@@ -1,6 +1,14 @@
 # Mascotas Municipales — prototipo Firebase
 
-Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración incluidas en `drawable-nodpi`.
+Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración en las fichas. La herramienta de reconocimiento incorpora captura real y análisis local independiente.
+
+## Versión 1.6 reconocimiento local de animales
+
+**Reconocer animal con foto** está disponible antes de ingresar, en Inicio y desde los formularios de mascota y reporte. Abre la cámara instalada en Android y usa ML Kit Image Labeling 17.0.9 con el modelo incluido en el APK. Muestra, por ejemplo, **Parece un perro** o **Parece un gato**. Admite etiquetas de otros animales como aves, caballos, bovinos, tortugas y algunos adicionales; no reconoce todas las especies ni razas. Una imagen sin evidencia suficiente se marca **Foto no válida**; un fallo técnico se comunica por separado. Los umbrales pueden producir falsos positivos o negativos y el modelo no prueba que se trate de un animal vivo frente a una imagen en pantalla o papel.
+
+Se conserva únicamente la última imagen de esa herramienta en almacenamiento privado, reducida y sin EXIF original, excluida del respaldo de Android y con botón para eliminarla. El análisis se puede realizar sin red. La foto no se sube a Firebase, no se adjunta a una ficha y no cambia la especie del formulario. El módulo no exige iniciar sesión; evita incluir personas o datos privados en las capturas. Las fotos históricas de las fichas siguen siendo demostrativas. Firebase y el taller pendiente de RTDB no cambian. [Arquitectura, protocolo y límites de pruebas](tests/android-animal-recognition.md).
+
+APK de demostración actual: [MascotasMunicipales-reconocimiento-1.6.apk](apk/MascotasMunicipales-reconocimiento-1.6.apk), versión 1.6 / versionCode 7. Pasaron `assembleDebug`, `lintDebug` y la instrumentación del reconocimiento en API 24 y 35. El modelo real reconoció los recursos de perro y gato y rechazó el control QR sin animal. La entrega de cámara se sustituyó por imágenes controladas en las pruebas; sigue pendiente validar la cámara física y una muestra amplia de animales y objetos. Los APK y documentos históricos del taller de compatibilidad se conservan con su versión 1.5.
 
 ## Versión 1.5: consulta QR y mejoras de presentación
 

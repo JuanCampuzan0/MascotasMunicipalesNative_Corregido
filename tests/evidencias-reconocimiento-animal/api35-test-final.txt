@@ -1,0 +1,6 @@
+INSTRUMENTATION_RESULT: api=35
+INSTRUMENTATION_RESULT: flujo=Captura con fixture, cancelación, rechazo QR, persistencia, nueva Activity, borrado, EXIF y reducción
+INSTRUMENTATION_RESULT: limite=Cámara sustituida por fixtures; no prueba cámara física, todas las especies ni exactitud general
+INSTRUMENTATION_RESULT: modeloReal={"perro":{"titulo":"Parece un perro","valida":true,"etiquetas":"Dog:0.9932481, Pet:0.97392654, Bird:0.32655585"},"gato":{"titulo":"Parece un gato","valida":true,"etiquetas":"Cat:0.99544924, Pet:0.96455383, Fur:0.5302365, Dog:0.42678988, Bird:0.41019556"},"codigoQR":{"titulo":"Foto no válida","valida":false,"etiquetas":"Pattern:0.8697722, Toy:0.3308413, Monochrome:0.3139862"}}
+INSTRUMENTATION_RESULT: resultado=APROBADO
+INSTRUMENTATION_CODE: -1

@@ -8,6 +8,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Query
+import java.util.Locale
 
 /** Único punto de acceso a Authentication y Firestore. Los Task terminan al recibir respuesta del servidor. */
 class MunicipalRepository {
@@ -103,7 +104,8 @@ class MunicipalRepository {
             "ownerId" to owner, "name" to p.name.trim(), "species" to p.species,
             "breed" to p.breed.trim(), "sex" to p.sex, "age" to p.age.trim(),
             "color" to p.color.trim(), "territoryId" to p.territoryId,
-            "status" to "Con responsable", "photoKey" to "", "qrCode" to "ZPQ-${ref.id.take(8).uppercase()}",
+            // El código deriva del ID aleatorio completo; los ocho caracteres podían colisionar.
+            "status" to "Con responsable", "photoKey" to "", "qrCode" to "ZPQ-${ref.id.uppercase(Locale.ROOT)}",
             "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
         )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo guardar el registro") }
     }

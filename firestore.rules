@@ -30,7 +30,9 @@ service cloud.firestore {
         && territory(d.territoryId)
         && d.status in ['Con responsable','En adopción','En custodia']
         && d.photoKey in ['', 'luna', 'michi', 'rocco', 'nina']
-        && d.qrCode is string && d.qrCode.matches('^ZPQ-[A-Z0-9]{8}$')
+        // El QR se deriva del ID del documento para impedir duplicados y suplantaciones.
+        && d.qrCode == 'ZPQ-' + petId.upper()
+        && d.qrCode.matches('^ZPQ-[A-Z0-9]{1,128}$')
         && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
     function reportValid(d) {

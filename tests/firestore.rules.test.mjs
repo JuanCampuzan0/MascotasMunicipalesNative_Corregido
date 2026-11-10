@@ -231,13 +231,23 @@ test("ciudadano crea sus propios registros válidos", async () => {
   await assertSucceeds(setDoc(doc(db("alice"), "pets/created"), {
     ownerId: "alice", name: "Pelusa", species: "Gato", breed: "Criolla", sex: "Hembra",
     age: "1 año", color: "Blanco", territoryId: "comuna-2", status: "Con responsable",
-    photoKey: "", qrCode: "ZPQ-ABCDE123",
+    photoKey: "", qrCode: "ZPQ-CREATED",
     createdAt: serverTimestamp(), updatedAt: serverTimestamp()
   }));
   await assertSucceeds(setDoc(doc(db("alice"), "reports/created"), {
     ownerId: "alice", petId: "", petName: "Pelusa", type: "Pérdida", species: "Gato",
     territoryId: "comuna-2", description: "Reporte ficticio", status: "Abierto",
     createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+  }));
+});
+
+test("el código QR debe corresponder al ID único e inmutable de la mascota", async () => {
+  const f = db("alice");
+  await assertSucceeds(setDoc(doc(f, "QRUNIQUE123"), {
+    ...validPet(), qrCode: "ZPQ-QRUNIQUE123"
+  }));
+  await assertFails(setDoc(doc(f, "QRFORGED123"), {
+    ...validPet(), qrCode: "ZPQ-QRUNIQUE123"
   }));
 });
 test("consultas acotadas requieren propiedad o rol funcionario", async () => {
@@ -257,7 +267,7 @@ test("otra cuenta no modifica mascota ajena ni falsifica propietario", async () 
   await assertFails(setDoc(doc(db("bob"), "pets/forged"), {
     ownerId: "alice", name: "Ficticia", species: "Gato", breed: "Criolla", sex: "Hembra",
     age: "1 año", color: "Blanco", territoryId: "comuna-2", status: "Con responsable",
-    photoKey: "", qrCode: "ZPQ-ABCDE123",
+    photoKey: "", qrCode: "ZPQ-FORGED",
     createdAt: serverTimestamp(), updatedAt: serverTimestamp()
   }));
 });

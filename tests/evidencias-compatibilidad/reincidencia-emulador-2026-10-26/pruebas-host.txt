@@ -1,0 +1,24 @@
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Vendor Google (Google Inc. (NVIDIA))
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Android Emulator OpenGL ES Translator (ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 Laptop GPU (0x000025A2) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.2101))
+2026-10-26 11:11:53,159 [ 118582]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 3 s 681 ms
+2026-10-26 11:12:08,174 [ 133597]   INFO - Emulator: Mascotas Compat API35 - Process finished with exit code -1073741819 (0xC0000005)
+2026-10-26 11:12:08,175 [ 133598]   WARN - Emulator: Mascotas Compat API35 - Emulator terminated with exit code -1073741819
+2026-10-26 11:18:06,413 [ 491836]   INFO - #c.i.o.v.i.l.NativeFileWatcherImpl - Watcher terminated with exit code 0
+2026-10-26 11:21:05,625 [  62009]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:host gles_mode_selected:host
+2026-10-26 11:21:05,625 [  62009]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Vendor Google (NVIDIA Corporation)
+2026-10-26 11:21:05,625 [  62009]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2)
+2026-10-26 11:21:08,313 [  64697]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 5 s 695 ms
+2026-10-26 11:21:44,014 [ 100398]   INFO - #com.android.tools.idea.run.activity.launch.ActivityLaunchOptionState - Activating Activity 'com.mascotasmunicipales.MainActivity'  on device emulator-5554
+2026-10-26 11:22:43,381 [ 159765]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:host gles_mode_selected:host
+2026-10-26 11:22:43,381 [ 159765]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Vendor Google (NVIDIA Corporation)
+2026-10-26 11:22:43,381 [ 159765]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2)
+2026-10-26 11:22:45,600 [ 161984]   INFO - Emulator: Mascotas Compat API35 - Process finished with exit code 0
+2026-10-26 11:23:00,378 [ 176762]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 19 s 629 ms
+2026-10-26 11:23:31,173 [ 207557]   INFO - #com.android.tools.idea.run.activity.launch.ActivityLaunchOptionState - Activating Activity 'com.mascotasmunicipales.MainActivity'  on device emulator-5554
+2026-10-26 11:24:27,900 [ 264284]   INFO - Emulator: Mascotas Compat API35 - Process finished with exit code 0
+2026-10-26 11:24:31,619 [ 268003]   INFO - Emulator: Mascotas Compat API24 - emuglConfig_init: vulkan_mode_selected:host gles_mode_selected:host
+2026-10-26 11:24:31,620 [ 268004]   INFO - Emulator: Mascotas Compat API24 - Graphics Adapter Vendor Google (NVIDIA Corporation)
+2026-10-26 11:24:31,620 [ 268004]   INFO - Emulator: Mascotas Compat API24 - Graphics Adapter Android Emulator OpenGL ES Translator (NVIDIA GeForce RTX 3050 Laptop GPU/PCIe/SSE2)
+2026-10-26 11:24:48,514 [ 284898]   INFO - #com.android.tools.idea.gradle.project.build.invoker.GradleBuildInvoker - Gradle build finished in 19 s 395 ms
+2026-10-26 11:25:08,022 [ 304406]   INFO - #com.android.tools.idea.run.activity.launch.ActivityLaunchOptionState - Activating Activity 'com.mascotasmunicipales.MainActivity'  on device emulator-5554

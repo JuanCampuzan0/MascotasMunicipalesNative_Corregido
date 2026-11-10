@@ -1,6 +1,14 @@
 # Mascotas Municipales — prototipo Firebase
 
-Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración incluidas en `drawable-nodpi`.
+Aplicación Android Kotlin para registro de mascotas y reportes de pérdida/hallazgo en Zipaquirá. Conserva el estilo en español y cuatro fotografías de demostración en las fichas. La herramienta de reconocimiento incorpora captura real y análisis local independiente.
+
+## Versión 1.6 reconocimiento local de animales
+
+**Reconocer animal con foto** está disponible antes de ingresar, en Inicio y desde los formularios de mascota y reporte. Abre la cámara instalada en Android y usa ML Kit Image Labeling 17.0.9 con el modelo incluido en el APK. Muestra, por ejemplo, **Parece un perro** o **Parece un gato**. Admite etiquetas de otros animales como aves, caballos, bovinos, tortugas y algunos adicionales; no reconoce todas las especies ni razas. Una imagen sin evidencia suficiente se marca **Foto no válida**; un fallo técnico se comunica por separado. Los umbrales pueden producir falsos positivos o negativos y el modelo no prueba que se trate de un animal vivo frente a una imagen en pantalla o papel.
+
+Se conserva únicamente la última imagen de esa herramienta en almacenamiento privado, reducida y sin EXIF original, excluida del respaldo de Android y con botón para eliminarla. El análisis se puede realizar sin red. La foto no se sube a Firebase, no se adjunta a una ficha y no cambia la especie del formulario. El módulo no exige iniciar sesión; evita incluir personas o datos privados en las capturas. Las fotos históricas de las fichas siguen siendo demostrativas. Firebase y el taller pendiente de RTDB no cambian. [Arquitectura, protocolo y límites de pruebas](tests/android-animal-recognition.md).
+
+APK de demostración actual: [MascotasMunicipales-reconocimiento-1.6.apk](apk/MascotasMunicipales-reconocimiento-1.6.apk), versión 1.6 / versionCode 7. Pasaron `assembleDebug`, `lintDebug` y la instrumentación del reconocimiento en API 24 y 35. El modelo real reconoció los recursos de perro y gato y rechazó el control QR sin animal. La entrega de cámara se sustituyó por imágenes controladas en las pruebas; sigue pendiente validar la cámara física y una muestra amplia de animales y objetos. Los APK y documentos históricos del taller de compatibilidad se conservan con su versión 1.5.
 
 ## Versión 1.5: consulta QR y mejoras de presentación
 
@@ -80,6 +88,12 @@ El botón **Perfil** abre un menú con Accesibilidad, Información de la aplicac
 Accesibilidad también está disponible antes de iniciar sesión. Sus tres interruptores guardan preferencias en el dispositivo: texto de la app 30 % más grande (además de la escala de fuente del sistema), contraste alto y paleta azul para daltonismo. La interfaz expresa estados con palabras, diferencia la pestaña seleccionada por fondo y peso del texto, etiqueta formularios y registros para TalkBack y ofrece un acceso a los ajustes de accesibilidad de Android. La app no activa TalkBack por su cuenta. Los datos y preferencias de accesibilidad no se envían a Firebase.
 
 ## Emuladores y pruebas
+
+**Actualización del 26 de octubre de 2026:** el fallo de arranque reapareció en API 35; el emulador terminó con `0xC0000005` antes de que Studio mostrara `Device did not start`. La reparación del 25 no fue estable. Se cambió el renderizador de los dos AVD de compatibilidad de `swangle` a `host`, manteniendo el panel integrado y los datos. El registro confirma OpenGL directo de NVIDIA. Las nuevas pruebas y sus límites se documentan en [Reincidencia del emulador](tests/evidencias-compatibilidad/reincidencia-emulador-2026-10-26/LEEME.md). No se considera garantía de estabilidad en todos los futuros reinicios del equipo.
+
+**Panel integrado recuperado el 25 de octubre de 2026:** Android Studio presentó un error de acceso a su archivo `.port`. Se configuró una carpeta de sistema nueva, conservando la anterior y los ajustes del usuario. Se habilitó nuevamente **Settings > Tools > Emulator > Launch in the Running Devices tool window**, se ajustaron los dos AVD de compatibilidad y se verificó instalación y apertura de la app en Android 7 y Android 15 mediante el botón Run real, ambos visibles dentro de Running Devices. Studio también pudo cerrarse y volver a abrir el proyecto sin el error de inicio. Se conservan los datos y el ajuste `Vulkan = off`. Utilizar un AVD a la vez. [Configuración, pruebas y reversión](tests/evidencias-compatibilidad/recuperacion-panel-integrado-2026-10-25/LEEME.md). La [solución anterior en ventanas independientes](tests/evidencias-compatibilidad/reparacion-studio-2026-10-25/LEEME.md) se conserva como antecedente y alternativa.
+
+El taller de compatibilidad compara Android 7.0 (API 24) con Android 15 (API 35). La mejora de miniaturas conserva la resolución del detalle y las versiones actuales de SDK/dependencias. El alcance y las evidencias se registran en [tests/android-compatibility.md](tests/android-compatibility.md). El 22 de octubre pasaron los tres recorridos en ambos Android con el mismo APK QA dirigido a Authentication y Firestore locales; el APK normal pasó instalación, arranque y fotos en ambos. La variante QA comparte el código principal, usa paquete/configuración separados y no se conecta al backend remoto. [Protocolo y límites](tests/android-functional-compatibility.md). Compilar por sí solo no demuestra compatibilidad.
 
 `firebase.json` configura Authentication y Firestore locales. Instale Node y Firebase CLI, ejecute `pnpm install` o `npm install`, y configure `FIREBASE_PROJECT_ID` con el ID **real** creado. En PowerShell:
 

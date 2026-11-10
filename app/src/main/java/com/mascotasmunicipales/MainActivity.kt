@@ -12,6 +12,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
+import android.os.Build
 import android.provider.Settings
 import android.text.InputFilter
 import android.view.Gravity
@@ -92,8 +93,8 @@ class MainActivity : AppCompatActivity() {
     private var updateAuthUi: ((SessionState) -> Unit)? = null
     private val work = WorkRepository()
     private var activeMap: MapView? = null
-    private val photoCache = object : LruCache<Int, Bitmap>(4096) {
-        override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount / 1024
+    private val photoCache = object : LruCache<String, Bitmap>(4096) {
+        override fun sizeOf(key: String, value: Bitmap): Int = (value.byteCount / 1024).coerceAtLeast(1)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -244,9 +245,19 @@ class MainActivity : AppCompatActivity() {
         }
         activeMap = null
     }
-    private fun setPhoto(view: ImageView, resource: Int) {
-        val bitmap = photoCache[resource] ?: BitmapFactory.decodeResource(resources, resource,
-            BitmapFactory.Options().apply { inSampleSize = 2 })?.also { photoCache.put(resource, it) }
+    private fun setPhoto(view: ImageView, resource: Int, thumbnailSidePx: Int = 0) {
+        // El detalle conserva el muestreo anterior; las tarjetas no necesitan un bitmap de 512 px.
+        var sample = 2
+        if (thumbnailSidePx > 0) {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeResource(resources, resource, bounds)
+            while (bounds.outWidth / (sample * 2) >= thumbnailSidePx &&
+                bounds.outHeight / (sample * 2) >= thumbnailSidePx) sample *= 2
+        }
+        // Una miniatura nunca debe sustituir la imagen de mayor resolución del detalle.
+        val key = "$resource:$sample"
+        val bitmap = photoCache[key] ?: BitmapFactory.decodeResource(resources, resource,
+            BitmapFactory.Options().apply { inSampleSize = sample })?.also { photoCache.put(key, it) }
         if (bitmap != null) view.setImageBitmap(bitmap) else view.setImageResource(resource)
     }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
@@ -395,10 +406,12 @@ class MainActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     private fun applySystemBars() {
         window.statusBarColor = teal
-        window.navigationBarColor = bg
+        // Antes de API 26 Android solo dibuja iconos claros en esta barra.
+        val darkNavigationIcons = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        window.navigationBarColor = if (darkNavigationIcons) bg else tealDark
         WindowInsetsControllerCompat(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightNavigationBars = darkNavigationIcons
         }
     }
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
@@ -493,6 +506,7 @@ class MainActivity : AppCompatActivity() {
         val accessibility = secondaryButton("AJUSTES DE ACCESIBILIDAD") { accessibilityOpen = true; accessibilityScreen() }
         c.addView(accessibility)
         c.addView(secondaryButton("CONSULTAR MASCOTA POR QR") { qrLookupScreen() })
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         message.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         show(scroll(c))
         updateAuthUi = { session ->
@@ -553,6 +567,7 @@ class MainActivity : AppCompatActivity() {
         c.addView(button("VER MASCOTAS") { tab = 2; renderTab() })
         c.addView(button("NUEVO REPORTE") { newReport() })
         c.addView(button("CONSULTAR QR") { qrLookupScreen() })
+        c.addView(button("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
         c.addView(heading("Registros recientes · máximo 3", 15f))
         val list = root(); c.addView(list)
@@ -570,7 +585,7 @@ class MainActivity : AppCompatActivity() {
         setOnClickListener { petDetail(p.id) }
         val res = photoResource(p.photoKey)
         if (res != 0) addView(ImageView(this@MainActivity).apply {
-            setPhoto(this, res); scaleType = ImageView.ScaleType.CENTER_CROP
+            setPhoto(this, res, dp(76)); scaleType = ImageView.ScaleType.CENTER_CROP
             background = rounded(softTeal, 13, Color.TRANSPARENT, 0); clipToOutline = true
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(76), dp(76)))
@@ -630,10 +645,16 @@ class MainActivity : AppCompatActivity() {
             renderPets()
         })
     }
+    private fun recognizeAnimal() {
+        model.flush()
+        startActivity(Intent(this, AnimalRecognitionActivity::class.java))
+    }
+
     private fun newPet() {
         remember("newPet", 2)
         val c = root(); c.addView(header("Registrar mascota", "Datos públicos mínimos · sin subir fotografías"))
         c.addView(infoCard("Ficha pública", "Incluye únicamente datos descriptivos. No se publican datos de contacto.", "🐾"))
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         val form = card(); form.addView(tv("Información de la mascota", 16f, true))
         val name = field("Nombre", 80); form.addView(name)
         val species = select(listOf("Perro", "Gato")); form.addView(spinnerLabel("Especie", species)); form.addView(species)
@@ -825,7 +846,8 @@ class MainActivity : AppCompatActivity() {
     private fun newReport() {
         remember("newReport", 1)
         val c = root(); c.addView(header("Nuevo Reporte", "Los datos se guardan en Firestore"))
-        c.addView(infoCard("Reporte ciudadano", "Describe el caso con claridad. La función de fotografía sigue siendo simulada y no sube archivos.", "!"))
+        c.addView(infoCard("Reporte ciudadano", "Describe el caso con claridad. Reconocer animal analiza una foto local, pero no la adjunta ni la publica en este reporte.", "!"))
+        c.addView(secondaryButton("RECONOCER ANIMAL CON FOTO") { recognizeAnimal() })
         val form = card(); form.addView(tv("Información del reporte", 16f, true))
         val name = field("Nombre de mascota (si se conoce)", 80); form.addView(name)
         val type = select(listOf("Pérdida", "Encontrado", "Avistamiento")); form.addView(spinnerLabel("Tipo de reporte", type)); form.addView(type)
@@ -1303,10 +1325,11 @@ class MainActivity : AppCompatActivity() {
         c.addView(card().apply {
             addView(heading("Privacidad"))
             addView(tv("Las fichas públicas no muestran correo, teléfono, dirección ni contraseña. Los datos de acceso se gestionan mediante Firebase Authentication.", 13f))
+            addView(tv("Reconocer animal procesa la foto en este dispositivo y conserva solo la última imagen de esa herramienta. Puedes eliminarla allí; no se adjunta a una ficha ni se envía a Firebase.", 13f))
         })
         c.addView(card().apply {
             addView(heading("Tecnologías"))
-            addView(tv("Kotlin · Android API 33 · Firebase Authentication · Cloud Firestore · OpenStreetMap · lector QR de Google Play Services.", 13f))
+            addView(tv("Kotlin · Android API 33 · Firebase Authentication · Cloud Firestore · OpenStreetMap · lector QR de Google Play Services · reconocimiento local de imágenes con ML Kit.", 13f))
             addView(tv("Plan Firebase Spark sin facturación vinculada. OpenStreetMap se utiliza con atribución y caché limitada.", 12f, false, gray))
         })
         c.addView(infoCard("Alcance académico", "No representa una operación municipal en producción y utiliza únicamente información ficticia para las demostraciones.", "i"))

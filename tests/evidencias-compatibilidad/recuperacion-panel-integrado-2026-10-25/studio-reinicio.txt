@@ -1,0 +1,12 @@
+2026-10-25 08:17:39,953 [  45620]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 9 in 1 ms: Commit artifact manager
+2026-10-25 08:17:39,987 [  45654]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 10 in 33 ms: External system: commit model
+2026-10-25 08:26:30,682 [ 576349]   INFO - #c.i.p.i.b.AppStarter - ------------------------------------------------------ IDE SHUTDOWN ------------------------------------------------------
+2026-10-25 08:26:42,233 [      5]   INFO - #c.i.p.i.b.AppStarter - ------------------------------------------------------ IDE STARTED ------------------------------------------------------
+    idea.system.path=D:\AndroidAVD\studio\system-2026.1.4-recuperado
+    idea.log.path=D:\AndroidAVD\studio\system-2026.1.4-recuperado\log
+2026-10-25 08:26:45,367 [   3139]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 2 in 61 ms: Change entity sources to externally imported
+2026-10-25 08:26:45,566 [   3338]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 4 in 10 ms: Sync global entities with project: MascotasMunicipales
+2026-10-25 08:26:50,489 [   8261]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 9 in 10 ms: Sync global entities with project: MascotasMunicipales
+2026-10-25 08:26:51,682 [   9454]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 10 in 9 ms: remove OCUserMarkedRoots
+2026-10-25 08:26:57,274 [  15046]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 11
+2026-10-25 08:26:57,588 [  15360]   INFO - #c.i.w.i.i.WorkspaceModelImpl - Project model for project MascotasMunicipales updated to version 12: Update Android entities

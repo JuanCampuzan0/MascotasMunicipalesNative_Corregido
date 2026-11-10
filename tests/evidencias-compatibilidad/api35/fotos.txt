@@ -1,0 +1,7 @@
+INSTRUMENTATION_RESULT: alcance=Bitmaps decodificados; no mide memoria total, CPU ni fluidez del dispositivo
+INSTRUMENTATION_RESULT: api=35
+INSTRUMENTATION_RESULT: bytesAntesCuatroFotos=4194304
+INSTRUMENTATION_RESULT: bytesDespuesCuatroMiniaturas=1048576
+INSTRUMENTATION_RESULT: resultado=APROBADO
+INSTRUMENTATION_RESULT: tarjetaPx=152
+INSTRUMENTATION_CODE: -1

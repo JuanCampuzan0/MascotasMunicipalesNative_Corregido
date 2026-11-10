@@ -1,0 +1,18 @@
+ENTREGA TALLER DE COMPATIBILIDAD ANDROID
+Preparado el 27 de octubre de 2026
+
+Contenido:
+- Taller_Compatibilidad_Android_Resultados_2026-10-22.docx: copia exacta del documento adjuntado por Juan David desde Descargas. No se cambió su contenido.
+- MascotasMunicipales-1.5-2026-10-27.apk: APK normal de demostración, recién compilado desde el proyecto actual. Paquete com.mascotasmunicipales, versión 1.5, versionCode 6, minSdk 24, targetSdk 33 y compileSdk 35. Conserva la configuración Firebase normal; no es la variante QA que requiere Firebase local.
+
+Verificación: assembleDebug y lintDebug finalizaron correctamente. También se verificó la firma del APK. Este empaquetado no repite los recorridos funcionales del taller.
+
+El APK recompilado tiene la misma huella que el APK normal probado el 22 de octubre: el código de la aplicación no cambió con la reparación del emulador. Los ajustes gráficos de Android Studio y los AVD pertenecen al computador y no se incluyen en un APK. No se aumentó el número de versión.
+
+SHA-256 APK:
+2ABB17D05AEF2A0624C9E364658CAAB7BA6AF2D45938636FBFADE744956AC0BF
+
+SHA-256 documento adjuntado:
+CD68EF9A930E608B3A599DABF91B5353523F7C377A7D476B839BA135B24B53AF
+
+El informe conserva sus resultados y pendientes, incluidas las reflexiones individuales. No se presenta el taller Offline First con Realtime Database como implementado.

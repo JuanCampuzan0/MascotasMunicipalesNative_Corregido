@@ -1,0 +1,265 @@
+D:\MascotasMunicipalesNative_Corregido\app\build.gradle.kts:13: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+        targetSdk = 33
+        ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application or sdk runs on a version of Android that is more
+   recent than your targetSdk specifies that it has been tested with, various
+   compatibility modes kick in. This ensures that your application continues
+   to work, but it may look out of place. For example, if the targetSdk is
+   less than 14, your app may get an option button in the UI.
+
+   To fix this issue, set the targetSdk to the highest available value. Then
+   test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+D:\MascotasMunicipalesNative_Corregido\app\build.gradle.kts:8: Warning: A newer version of compileSdk than 35 is available: 37 [GradleDependency]
+    compileSdk = 35
+    ~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+D:\MascotasMunicipalesNative_Corregido\app\src\main\AndroidManifest.xml:7: Warning: Expecting android:screenOrientation="unspecified" or "fullSensor" for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices [LockedOrientationActivity]
+        <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
+                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "LockedOrientationActivity":
+   The <activity> element should not be locked to any orientation so that
+   users can take advantage of the multi-window environments and larger
+   screens available on Android. To fix the issue, consider declaring the
+   corresponding activity element with `screenOrientation="unspecified"`or
+   fullSensor attribute.
+
+   https://developer.android.com/topic/arc/window-management
+
+D:\MascotasMunicipalesNative_Corregido\app\src\main\AndroidManifest.xml:7: Warning: Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios. [DiscouragedApi]
+        <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
+                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "DiscouragedApi":
+   Discouraged APIs are allowed and are not deprecated, but they may be unfit
+   for common use (e.g. due to slow performance or subtle behavior).
+
+D:\MascotasMunicipalesNative_Corregido\app\src\main\res\drawable\card.xml:1: Warning: The resource R.drawable.card appears to be unused [UnusedResources]
+<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#FFFFFF"/><corners android:radius="16dp"/><padding android:left="14dp" android:top="12dp" android:right="14dp" android:bottom="12dp"/><stroke android:width="1dp" android:color="#DCE6EA"/></shape>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\res\drawable\pill.xml:1: Warning: The resource R.drawable.pill appears to be unused [UnusedResources]
+<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#DDF5E9"/><corners android:radius="30dp"/><padding android:left="9dp" android:top="4dp" android:right="9dp" android:bottom="4dp"/></shape>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\res\drawable-nodpi\qr_luna.png: Warning: The resource R.drawable.qr_luna appears to be unused [UnusedResources]
+
+   Explanation for issues of type "UnusedResources":
+   Unused resources make applications larger and slow down builds.
+
+
+   The unused resource check can ignore tests. If you want to include
+   resources that are only referenced from tests, consider packaging them in a
+   test source set instead.
+
+   You can include test sources in the unused resource check by setting the
+   system property lint.unused-resources.include-tests=true, and to exclude
+   them (usually for performance reasons), use
+   lint.unused-resources.exclude-tests=true.
+
+   Available options:
+
+   **skip-libraries** (default is true):
+   Whether the unused resource check should skip reporting unused resources in libraries.
+
+   Many libraries will declare resources that are part of the library surface; other modules depending on the library will also reference the resources. To avoid reporting all these resources as unused (in the context of a library), the unused resource check normally skips reporting unused resources in libraries. Instead, run the unused resource check on the consuming app module (along with `checkDependencies=true`).
+
+   However, there are cases where you want to check that all the resources declared in a library are used; in that case, you can disable the skip option.
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UnusedResources">
+           <option name="skip-libraries" value="true" />
+       </issue>
+   </lint>
+   ```
+
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1264: Warning: Use the KTX extension function SharedPreferences.edit instead? [UseKtx]
+                accessibilityPreferences.edit().putBoolean(key, value).apply()
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UseKtx":
+   The Android KTX libraries decorates the Android platform SDK as well as
+   various libraries with more convenient extension functions available from
+   Kotlin, allowing you to use default parameters, named parameters, and
+   more.
+
+   Available options:
+
+   **remove-defaults** (default is true):
+   Whether to skip arguments that match the defaults provided by the extension.
+
+   Extensions often provide default values for some of the parameters. For example:
+   ```kotlin
+   fun Path.readLines(charset: Charset = Charsets.UTF_8): List<String> { return Files.readAllLines(this, charset) }
+   ```
+   This lint check will by default automatically omit parameters that match the default, so if your code was calling
+
+   ```kotlin
+   Files.readAllLines(file, Charset.UTF_8)
+   ```
+   lint would replace this with
+   ```kotlin
+   file.readLines()
+   ```
+   rather than
+
+   ```kotlin
+   file.readLines(Charset.UTF_8
+   ```
+   You can turn this behavior off using this option.
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UseKtx">
+           <option name="remove-defaults" value="true" />
+       </issue>
+   </lint>
+   ```
+
+   **require-present** (default is true):
+   Whether to only offer extensions already available.
+
+   This option lets you only have lint suggest extension replacements if those extensions are already available on the class path (in other words, you're already depending on the library containing the extension method.)
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UseKtx">
+           <option name="require-present" value="true" />
+       </issue>
+   </lint>
+   ```
+
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:543: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+            if (d.status == "failed") submit.text = "REINTENTAR MISMO ENVÍO"
+                                                     ~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:663: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "Completa nombre, raza, edad y color."
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:727: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "Escribe un código válido con el formato ZPQ- seguido de letras o números."
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:731: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+            message.text = "Consultando $normalized…"
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:731: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+            message.text = "Consultando $normalized…"
+                            ~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:855: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+            if (desc.text.isBlank()) message.text = "Escribe una descripción."
+                                                     ~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:960: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                message.text = "La cuenta no tiene el rol elegido. Tu acceso aprobado es ${if (access.role == "vet") "Veterinario" else "Administrador"}."
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:960: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "La cuenta no tiene el rol elegido. Tu acceso aprobado es ${if (access.role == "vet") "Veterinario" else "Administrador"}."
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1023: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                    schedule.text = "FECHA Y HORA · ${scheduleLabel()}"
+                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1023: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    schedule.text = "FECHA Y HORA · ${scheduleLabel()}"
+                                     ~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1033: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    result.text = "Completa nombre, lugar y descripción."
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1034: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                scheduledMillis <= System.currentTimeMillis() -> result.text = "Elige una fecha y hora futuras."
+                                                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1036: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    submit.isEnabled = false; result.text = "Esperando confirmación del servidor…"
+                                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1044: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                            submit.isEnabled = true; result.text = "No confirmado: $failure"
+                                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1044: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            submit.isEnabled = true; result.text = "No confirmado: $failure"
+                                                                    ~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1100: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                                result.text = "Esperando confirmación del servidor…"
+                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1108: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                                            result.text = "No confirmado: $failure"
+                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1108: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                                            result.text = "No confirmado: $failure"
+                                                           ~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1125: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                                review.isEnabled = false; result.text = "Esperando confirmación…"
+                                                                         ~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1129: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                                        if (failure == null) workCase(doc.id) else result.text = "No confirmado: $failure"
+                                                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1129: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                                        if (failure == null) workCase(doc.id) else result.text = "No confirmado: $failure"
+                                                                                                  ~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1158: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                message.text = "${doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }} · ${doc.getString("species")}\nEstado: $status\n${territoryLabel(doc.getString("territoryId").orEmpty())}\nVeterinario: ${doc.getString("vetId").orEmpty().ifBlank { "Sin asignar" }}\nResultado para el ciudadano: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}"
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1158: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "${doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }} · ${doc.getString("species")}\nEstado: $status\n${territoryLabel(doc.getString("territoryId").orEmpty())}\nVeterinario: ${doc.getString("vetId").orEmpty().ifBlank { "Sin asignar" }}\nResultado para el ciudadano: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}"
+                                                                                                                                           ~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1158: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "${doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }} · ${doc.getString("species")}\nEstado: $status\n${territoryLabel(doc.getString("territoryId").orEmpty())}\nVeterinario: ${doc.getString("vetId").orEmpty().ifBlank { "Sin asignar" }}\nResultado para el ciudadano: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}"
+                                                                                                                                                                                                                       ~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1158: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                message.text = "${doc.getString("petName").orEmpty().ifBlank { "Mascota sin identificar" }} · ${doc.getString("species")}\nEstado: $status\n${territoryLabel(doc.getString("territoryId").orEmpty())}\nVeterinario: ${doc.getString("vetId").orEmpty().ifBlank { "Sin asignar" }}\nResultado para el ciudadano: ${doc.getString("outcome").orEmpty().ifBlank { "En proceso" }}"
+                                                                                                                                                                                                                                                                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1166: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                    busy = true; result.text = "Esperando confirmación del servidor…"
+                                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1171: Warning: Do not concatenate text displayed with setText. Use resource string with placeholders. [SetTextI18n]
+                            else result.text = "No confirmado: $e. Actualiza para comprobar el estado antes de reintentar."
+                                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1171: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            else result.text = "No confirmado: $e. Actualiza para comprobar el estado antes de reintentar."
+                                                ~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1171: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            else result.text = "No confirmado: $e. Actualiza para comprobar el estado antes de reintentar."
+                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1180: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            if (vet.text.isBlank()) result.text = "Escribe el UID del veterinario." else submit("Asignado", vetId = vet.text.toString())
+                                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1186: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            if (outcome.text.isBlank()) result.text = "Escribe el resultado." else submit("Cerrado", outcome = outcome.text.toString())
+                                                                       ~~~~~~~~~~~~~~~~~~~~~
+D:\MascotasMunicipalesNative_Corregido\app\src\main\java\com\mascotasmunicipales\MainActivity.kt:1205: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+                            if (exam.text.isBlank() || care.text.isBlank()) result.text = "Completa valoración y atención."
+                                                                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "SetTextI18n":
+   When calling TextView#setText
+   * Never call Number#toString() to format numbers; it will not handle
+   fraction separators and locale-specific digits properly. Consider using
+   String#format with proper format specifications (%d or %f) instead.
+   * Do not pass a string literal (e.g. "Hello") to display text. Hardcoded
+   text can not be properly translated to other languages. Consider using
+   Android resource strings instead.
+   * Do not build messages by concatenating text chunks. Such messages can not
+   be properly translated.
+
+   https://developer.android.com/guide/topics/resources/localization.html
+
+0 errors, 40 warnings

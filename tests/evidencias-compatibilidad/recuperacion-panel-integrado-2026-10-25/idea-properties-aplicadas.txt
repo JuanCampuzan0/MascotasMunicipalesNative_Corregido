@@ -1,0 +1,4 @@
+
+# Carpeta de sistema nueva para evitar el archivo .port inaccesible.
+idea.system.path=D:/AndroidAVD/studio/system-2026.1.4-recuperado
+idea.log.path=D:/AndroidAVD/studio/system-2026.1.4-recuperado/log

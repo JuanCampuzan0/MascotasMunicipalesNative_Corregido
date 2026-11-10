@@ -1,0 +1,7 @@
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - emuglConfig_init: vulkan_mode_selected:swiftshader gles_mode_selected:swiftshader
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Vendor Google (Google Inc. (NVIDIA))
+2026-10-26 11:11:51,639 [ 117062]   INFO - Emulator: Mascotas Compat API35 - Graphics Adapter Android Emulator OpenGL ES Translator (ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 Laptop GPU (0x000025A2) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.16.2101))
+2026-10-26 11:12:08,174 [ 133597]   INFO - Emulator: Mascotas Compat API35 - Process finished with exit code -1073741819 (0xC0000005)
+2026-10-26 11:12:08,175 [ 133598]   WARN - Emulator: Mascotas Compat API35 - Emulator terminated with exit code -1073741819
+2026-10-26 11:17:06,398 [ 431821]   INFO - #c.i.e.r.ExecutionUtil - Error running 'app':<br>Device did not start
+2026-10-26 11:18:06,413 [ 491836]   INFO - #c.i.o.v.i.l.NativeFileWatcherImpl - Watcher terminated with exit code 0

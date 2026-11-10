@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.mascotasmunicipales/.MainActivity }
+Status: ok
+Activity: com.mascotasmunicipales/.MainActivity
+ThisTime: 1286
+TotalTime: 1286
+WaitTime: 1418
+Complete

@@ -6,4 +6,6 @@ local.properties
 **/build/
 *.iml
 node_modules/
+firebase-debug.log*
+firestore-debug.log*
 

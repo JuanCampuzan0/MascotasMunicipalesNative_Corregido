@@ -1,0 +1,18 @@
+{
+  "phase": "final",
+  "result": "APROBADO",
+  "projectId": "demo-mascotas-compat",
+  "api": 35,
+  "uid": "3hr7Jb791e7nF6IJJHu5t4fJp2lx",
+  "petId": "337513d379a442bf8e477fa58ffd8104",
+  "reportId": "a59f0098df9c4aae9f7c3fcc507585eb",
+  "pendingId": "f1f8c3bdf2e94d1f8b632ffe214701d2",
+  "pendingExistsOnServer": true,
+  "ownerPetCount": 1,
+  "ownerReportCount": 2,
+  "reportIds": [
+    "a59f0098df9c4aae9f7c3fcc507585eb",
+    "f1f8c3bdf2e94d1f8b632ffe214701d2"
+  ],
+  "checkedAtUtc": "2026-10-23T01:03:31.803Z"
+}

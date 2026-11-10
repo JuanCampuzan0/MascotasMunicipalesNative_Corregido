@@ -1,0 +1,11 @@
+{
+  "fecha": "2026-10-25T08:25:04.8371064-05:00",
+  "api": "24",
+  "sysBoot": "1",
+  "devBoot": "1",
+  "pid": "3638",
+  "actividad": [
+    "    mResumedActivity: ActivityRecord{c23c18e u0 com.mascotasmunicipales/.MainActivity t26}"
+  ],
+  "origen": "Run real de Android Studio; panel integrado visible"
+}

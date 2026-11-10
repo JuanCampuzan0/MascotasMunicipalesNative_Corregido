@@ -1,0 +1,14 @@
+{
+  "api": 24,
+  "android": "7.0",
+  "package": "com.mascotasmunicipales.compatqa",
+  "project": "demo-mascotas-compat",
+  "runId": "taller22d",
+  "mode": "recover",
+  "pendingId": "7daac408704343ff9f02e4d1e35f1738",
+  "uid": "MAJVTYTmfYrwRvlMC2i1wLXVBSrs",
+  "sameIdAfterProcessRestart": true,
+  "serverConfirmed": true,
+  "logout": true,
+  "result": "APROBADO"
+}

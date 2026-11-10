@@ -1,0 +1,15 @@
+{
+  "fecha": "2026-10-25",
+  "emulatorVersion": "37.1.11",
+  "userOverridePath": "C:\\Users\\jcamp\\.android\\advancedFeatures.ini",
+  "vulkan": "off",
+  "api24": "boot_completed=1; MainActivity Status: ok",
+  "api35": "boot_completed=1; MainActivity Status: ok",
+  "appDataWiped": false,
+  "sourceChanged": false,
+  "firebaseChanged": false,
+  "assembleDebug": "APROBADO",
+  "lintErrors": 0,
+  "lintWarnings": 40,
+  "avdTestedOneAtATime": true
+}

@@ -1,0 +1,21 @@
+--------- beginning of main
+--------- beginning of system
+--------- beginning of crash
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: FATAL EXCEPTION: main
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: Process: com.mascotasmunicipales.compatqa, PID: 3595
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: java.lang.RuntimeException: Unable to create application com.mascotasmunicipales.CompatibilityApplication: java.lang.IllegalStateException: Cannot call useEmulator() after instance has already been initialized.
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.ActivityThread.handleBindApplication(ActivityThread.java:5364)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.ActivityThread.-wrap2(ActivityThread.java)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:1528)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:102)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:154)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:6077)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit$MethodAndArgsCaller.run(ZygoteInit.java:866)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:756)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: Caused by: java.lang.IllegalStateException: Cannot call useEmulator() after instance has already been initialized.
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at com.google.firebase.firestore.FirebaseFirestore.useEmulator(FirebaseFirestore.java:285)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at com.mascotasmunicipales.CompatibilityApplication.onCreate(CompatibilityApplication.kt:15)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.Instrumentation.callApplicationOnCreate(Instrumentation.java:1024)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	at android.app.ActivityThread.handleBindApplication(ActivityThread.java:5361)
+10-23 00:54:48.497  3595  3595 E AndroidRuntime: 	... 8 more

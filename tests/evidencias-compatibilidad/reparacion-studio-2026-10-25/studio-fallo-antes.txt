@@ -1,0 +1,7 @@
+2026-10-25 07:35:18,845 [ 248184]   INFO - Emulator: Mascotas Compat API24 - Feature 'Vulkan' (21) is overridden to 'disabled'
+2026-10-25 07:35:19,079 [ 248418]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] is offline (device state is `OFFLINE`)
+2026-10-25 07:35:25,059 [ 254398]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] has come online
+2026-10-25 07:40:19,640 [ 548979]   WARN - #com.android.tools.idea.avdmanager.EmulatorConnectionListener - Timed out after 300 seconds waiting for emulator to come online.
+2026-10-25 07:40:25,104 [ 554443]   INFO - #c.i.e.r.ExecutionUtil - Error running 'app':<br>Device did not start
+2026-10-25 07:41:05,175 [ 594514]   INFO - #com.android.tools.idea.adb.AdbService - Device [emulator-5554] has come online
+2026-10-25 07:41:05,574 [ 594913]   INFO - EmulatorController: Mascotas Compat API24 - Disconnected from Mascotas Compat API24 on port 8554

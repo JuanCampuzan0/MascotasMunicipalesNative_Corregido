@@ -1,0 +1,8 @@
+{
+  "api": 35,
+  "android": "15",
+  "modelo": "sdk_gphone64_x86_64",
+  "apkSha256": "5C7462623551FD6C960C05C0FC4BB3DB8912CA7AB5E21EE18A60537712BD19C8",
+  "fecha": "2026-10-20T15:25:08.8222491-05:00",
+  "alcance": "Instalación, arranque y bitmaps si se solicitaron. Las tres funciones requieren su recorrido propio."
+}

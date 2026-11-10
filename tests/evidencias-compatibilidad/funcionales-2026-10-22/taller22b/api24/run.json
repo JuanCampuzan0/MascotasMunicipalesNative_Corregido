@@ -1,0 +1,10 @@
+{
+  "api": 24,
+  "android": "7.0",
+  "package": "com.mascotasmunicipales.compatqa",
+  "project": "demo-mascotas-compat",
+  "runId": "taller22b",
+  "mode": "run",
+  "result": "FALLO",
+  "error": "No apareció el estado esperado: Resumen"
+}

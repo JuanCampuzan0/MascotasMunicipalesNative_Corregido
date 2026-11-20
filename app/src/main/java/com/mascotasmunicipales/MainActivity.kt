@@ -14,6 +14,8 @@ import android.graphics.drawable.RippleDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputFilter
+import android.text.InputType
+import android.util.Patterns
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -42,6 +44,7 @@ import java.io.File
 import java.text.DateFormat
 import java.text.Normalizer
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -126,7 +129,8 @@ class MainActivity : AppCompatActivity() {
                 if (!model.ready || model.screen == "home") finish()
                 else renderRoute(when {
                     model.screen == "profile" -> model.previousScreen
-                    model.screen == "about" -> "profile"
+                    model.screen in listOf("about", "accountInfo", "changeEmail", "changePassword", "editPets") -> "profile"
+                    model.screen.startsWith("editPet:") -> "editPets"
                     model.screen == "qr" -> "pets"
                     model.screen == "newPet" || model.screen.startsWith("pet:") -> "pets"
                     model.screen == "newReport" || model.screen.startsWith("report:") -> "reports"
@@ -175,6 +179,11 @@ class MainActivity : AppCompatActivity() {
             route.startsWith("workcase:") -> workCase(route.removePrefix("workcase:"))
             route == "accessibility" -> accessibilityScreen()
             route == "about" -> aboutScreen()
+            route == "accountInfo" -> accountInfoScreen()
+            route == "changeEmail" -> changeEmailScreen()
+            route == "changePassword" -> changePasswordScreen()
+            route == "editPets" -> editPetsScreen()
+            route.startsWith("editPet:") -> editPetScreen(route.removePrefix("editPet:"))
             route == "qr" -> qrLookupScreen()
             route == "newPet" -> newPet()
             route == "newReport" -> newReport()
@@ -296,6 +305,9 @@ class MainActivity : AppCompatActivity() {
         filters = arrayOf(InputFilter.LengthFilter(maxLength))
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(12), dp(5), dp(12), dp(5)) }
     }
+    private fun passwordField(hintValue: String) = field(hintValue, 128).apply {
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+    }
     private fun select(values: List<String>) = Spinner(this).apply {
         id = View.generateViewId()
         adapter = object : ArrayAdapter<String>(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, values) {
@@ -334,16 +346,19 @@ class MainActivity : AppCompatActivity() {
             if (subtitle.isNotBlank()) addView(tv(subtitle, 12f, false, Color.WHITE).apply { alpha = .88f })
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (model.ready) {
-            val inProfile = model.screen in listOf("profile", "accessibility", "about")
-            val inAbout = model.screen == "about"
+            val inProfile = model.screen in listOf(
+                "profile", "accessibility", "about", "accountInfo", "changeEmail",
+                "changePassword", "editPets"
+            ) || model.screen.startsWith("editPet:")
+            val inProfileChild = model.screen != "profile" && inProfile
             addView(tv(if (inProfile) "Volver" else "Perfil", 12f, true, teal).apply {
                 gravity = Gravity.CENTER
                 minHeight = dp(56); minWidth = dp(64)
-                contentDescription = if (accessibilityOpen || inAbout) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
+                contentDescription = if (accessibilityOpen || inProfileChild) "Volver al menú de perfil" else if (inProfile) "Volver a la pantalla anterior" else "Abrir menú de perfil"
                 background = RippleDrawable(ColorStateList.valueOf(Color.argb(35, 20, 127, 149)), shape(), rounded(Color.WHITE, 14, Color.TRANSPARENT, 0))
                 setOnClickListener {
                     if (accessibilityOpen) profileMenu()
-                    else if (inAbout) profileMenu()
+                    else if (inProfileChild) profileMenu()
                     else if (inProfile) renderRoute(model.previousScreen)
                     else { model.previousScreen = model.screen; profileMenu() }
                 }
@@ -408,6 +423,8 @@ class MainActivity : AppCompatActivity() {
     private fun dateTime(t: com.google.firebase.Timestamp?) = t?.toDate()?.let {
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.forLanguageTag("es-CO")).format(it)
     } ?: "Fecha pendiente"
+    private fun accountDate(millis: Long): String = if (millis <= 0L) "No disponible" else
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.forLanguageTag("es-CO")).format(Date(millis))
     private fun state(pending: Boolean, cache: Boolean) = when {
         pending -> "Pendiente de sincronización"
         cache -> "Dato en caché · sin confirmación reciente"
@@ -1230,14 +1247,219 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun upcomingOption(title: String, detail: String = "") = card().apply {
-        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; alpha = .78f
+    private fun profileOption(title: String, detail: String, action: () -> Unit) = card().apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        isClickable = true; isFocusable = true; setOnClickListener { action() }
+        contentDescription = "$title. $detail. Abrir"
+        foreground = RippleDrawable(ColorStateList.valueOf(Color.argb(30, 20, 127, 149)), null, rounded(Color.WHITE, 16))
         addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
             addView(tv(title, 15f, true))
-            if (detail.isNotBlank()) addView(tv(detail, 12f, false, gray))
+            addView(tv(detail, 12f, false, gray))
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        addView(pill("Próximamente", false))
+        addView(tv("›", 26f, false, teal).apply {
+            gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        })
+    }
+
+    private fun accountInfoScreen() {
+        remember("accountInfo", 4)
+        val c = root(); c.addView(header("Información de tu cuenta", "Datos protegidos por Firebase Authentication"))
+        c.addView(infoCard("Cuenta privada", "Esta información solo se muestra a la persona que inició sesión.", "🔒"))
+        val status = messageView("Actualizando información…"); c.addView(status)
+        val body = root(); c.addView(body)
+        c.addView(secondaryButton("← VOLVER AL PERFIL") { profileMenu() })
+        show(scroll(c))
+        val generation = screenGeneration
+        fun load() {
+            status.text = "Actualizando información…"
+            repo.accountSummary { account, error ->
+                if (generation != screenGeneration) return@accountSummary
+                body.removeAllViews()
+                if (error != null || account == null) {
+                    status.text = "No se pudo consultar la cuenta: ${error ?: "respuesta vacía"}"
+                    body.addView(secondaryButton("REINTENTAR") { load() })
+                } else {
+                    status.text = "Información actualizada."
+                    body.addView(card().apply {
+                        addView(heading("Datos de acceso"))
+                        addView(tv("Correo electrónico", 12f, true, gray))
+                        addView(tv(account.email, 16f, true))
+                        addView(pill(if (account.emailVerified) "Correo verificado" else "Correo sin verificar", account.emailVerified))
+                    })
+                    body.addView(card().apply {
+                        addView(heading("Actividad de la cuenta"))
+                        addView(tv("Cuenta creada: ${accountDate(account.createdAtMillis)}\nÚltimo ingreso: ${accountDate(account.lastSignInAtMillis)}", 13f))
+                    })
+                    body.addView(card().apply {
+                        addView(heading("Identificador seguro"))
+                        addView(tv(account.uid, 12f, false, gray))
+                        addView(tv("Este UID permite relacionar tus registros sin publicar tu correo.", 12f, false, gray))
+                    })
+                }
+            }
+        }
+        load()
+    }
+
+    private fun changeEmailScreen() {
+        remember("changeEmail", 4)
+        val c = root(); c.addView(header("Cambiar correo electrónico", "El nuevo correo debe poder recibir mensajes"))
+        c.addView(infoCard("Cambio protegido", "Primero confirmamos tu contraseña y enviamos un enlace al correo nuevo. El cambio solo se completa al abrir ese enlace.", "✉"))
+        val form = card(); form.addView(tv("Correo actual", 12f, true, gray)); form.addView(tv(repo.email, 16f, true))
+        val password = passwordField("Contraseña actual"); form.addView(password)
+        val email = field("Nuevo correo electrónico", 254).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }; form.addView(email)
+        val message = messageView("La contraseña no se guarda en el dispositivo."); form.addView(message)
+        lateinit var submit: Button
+        submit = button("ENVIAR VERIFICACIÓN") {
+            val target = email.text.toString().trim()
+            when {
+                password.text.isBlank() -> message.text = "Escribe tu contraseña actual."
+                !Patterns.EMAIL_ADDRESS.matcher(target).matches() -> message.text = "Escribe un correo válido."
+                target.equals(repo.email, ignoreCase = true) -> message.text = "El correo nuevo debe ser diferente al actual."
+                else -> {
+                    submit.isEnabled = false; message.text = "Comprobando y enviando el enlace…"
+                    repo.requestEmailChange(password.text.toString(), target) { error ->
+                        if (model.screen != "changeEmail") return@requestEmailChange
+                        submit.isEnabled = true
+                        if (error == null) {
+                            password.text.clear()
+                            message.text = "Enlace enviado a $target. Ábrelo para confirmar el cambio y después vuelve a iniciar sesión."
+                        } else message.text = "No se pudo solicitar el cambio: $error"
+                    }
+                }
+            }
+        }
+        form.addView(submit); c.addView(form)
+        c.addView(secondaryButton("← VOLVER AL PERFIL") { profileMenu() })
+        show(scroll(c))
+    }
+
+    private fun changePasswordScreen() {
+        remember("changePassword", 4)
+        val c = root(); c.addView(header("Cambiar contraseña", "Protege el acceso a tu cuenta"))
+        c.addView(infoCard("Reautenticación segura", "Firebase comprobará tu contraseña actual. La app no conserva ninguna contraseña.", "🔑"))
+        val form = card()
+        val current = passwordField("Contraseña actual"); form.addView(current)
+        val password = passwordField("Nueva contraseña · mínimo 8 caracteres"); form.addView(password)
+        val confirmation = passwordField("Repite la nueva contraseña"); form.addView(confirmation)
+        val message = messageView("Usa una contraseña diferente y evita compartirla."); form.addView(message)
+        lateinit var submit: Button
+        submit = button("CAMBIAR CONTRASEÑA") {
+            when {
+                current.text.isBlank() -> message.text = "Escribe tu contraseña actual."
+                password.text.length < 8 -> message.text = "La contraseña nueva debe tener al menos 8 caracteres."
+                password.text.toString() != confirmation.text.toString() -> message.text = "Las contraseñas nuevas no coinciden."
+                current.text.toString() == password.text.toString() -> message.text = "La contraseña nueva debe ser diferente."
+                else -> {
+                    submit.isEnabled = false; message.text = "Actualizando contraseña…"
+                    repo.changePassword(current.text.toString(), password.text.toString()) { error ->
+                        if (model.screen != "changePassword") return@changePassword
+                        submit.isEnabled = true
+                        if (error == null) {
+                            current.text.clear(); password.text.clear(); confirmation.text.clear()
+                            message.text = "Contraseña actualizada correctamente. Ya puedes usarla en tu próximo ingreso."
+                        } else message.text = "No se pudo cambiar la contraseña: $error"
+                    }
+                }
+            }
+        }
+        form.addView(submit); c.addView(form)
+        c.addView(secondaryButton("← VOLVER AL PERFIL") { profileMenu() })
+        show(scroll(c))
+    }
+
+    private fun editPetsScreen() {
+        remember("editPets", 4)
+        val c = root(); c.addView(header("Información de tus mascotas", "Edita únicamente tus propios registros"))
+        c.addView(infoCard("Cambios públicos", "Nombre, características, comuna y estado aparecerán en la ficha pública. El código QR no cambia.", "🐾"))
+        val status = messageView("Consultando tus mascotas…"); c.addView(status)
+        val list = root(); c.addView(list)
+        c.addView(secondaryButton("← VOLVER AL PERFIL") { profileMenu() })
+        show(scroll(c))
+        listeners.add(repo.observeMyPets { pets, cache, error ->
+            list.removeAllViews()
+            status.text = when {
+                error != null -> "No se pudieron consultar tus mascotas: $error"
+                pets.isEmpty() && cache -> "No hay registros guardados en este dispositivo. Conéctate y reintenta."
+                pets.isEmpty() -> "Todavía no tienes mascotas registradas."
+                cache -> "${pets.size} mascota(s) en caché; los cambios requieren conexión para confirmarse."
+                else -> "${pets.size} mascota(s) encontrada(s)."
+            }
+            if (error != null) list.addView(secondaryButton("REINTENTAR") { editPetsScreen() })
+            else if (pets.isEmpty()) list.addView(button("REGISTRAR MASCOTA") { newPet() })
+            else pets.forEach { pet ->
+                list.addView(profileOption(pet.name, "${pet.species} · ${pet.breed} · ${pet.status}") { editPetScreen(pet.id) })
+            }
+        })
+    }
+
+    private fun editPetScreen(id: String) {
+        remember("editPet:$id", 4)
+        val c = root(); c.addView(header("Editar mascota", "Actualiza su ficha pública"))
+        val body = root(); body.addView(messageView("Cargando información…")); c.addView(body)
+        c.addView(secondaryButton("← VOLVER A MIS MASCOTAS") { editPetsScreen() })
+        show(scroll(c))
+        val generation = screenGeneration
+        repo.getPet(id) { pet, error ->
+            if (generation != screenGeneration) return@getPet
+            body.removeAllViews()
+            if (error != null || pet == null) {
+                body.addView(messageView("No se pudo abrir la mascota: ${error ?: "registro inexistente"}"))
+                body.addView(secondaryButton("REINTENTAR") { editPetScreen(id) })
+                return@getPet
+            }
+            if (pet.ownerId != repo.uid) {
+                body.addView(messageView("Esta mascota no pertenece a tu cuenta y no puede editarse."))
+                return@getPet
+            }
+            body.addView(infoCard("Código ${pet.qrCode}", "El código público y la persona responsable permanecen protegidos y no se modifican.", "▣"))
+            val form = card(); form.addView(tv("Datos editables", 16f, true))
+            val name = field("Nombre", 80).apply { setText(pet.name) }; form.addView(name)
+            val speciesValues = listOf("Perro", "Gato")
+            val species = select(speciesValues).apply { setSelection(speciesValues.indexOf(pet.species).coerceAtLeast(0)) }
+            form.addView(spinnerLabel("Especie", species)); form.addView(species)
+            val breed = field("Raza", 80).apply { setText(pet.breed) }; form.addView(breed)
+            val sexValues = listOf("Hembra", "Macho", "No determinado")
+            val sex = select(sexValues).apply { setSelection(sexValues.indexOf(pet.sex).coerceAtLeast(0)) }
+            form.addView(spinnerLabel("Sexo", sex)); form.addView(sex)
+            val age = field("Edad aproximada", 40).apply { setText(pet.age) }; form.addView(age)
+            val color = field("Color", 80).apply { setText(pet.color) }; form.addView(color)
+            val territoryValues = TERRITORIES.map { it.label }
+            val territory = select(territoryValues).apply {
+                setSelection(TERRITORIES.indexOfFirst { it.id == pet.territoryId }.coerceAtLeast(0))
+            }
+            form.addView(spinnerLabel("Comuna", territory)); form.addView(territory)
+            val statusValues = listOf("Con responsable", "En adopción", "En custodia")
+            val petStatus = select(statusValues).apply { setSelection(statusValues.indexOf(pet.status).coerceAtLeast(0)) }
+            form.addView(spinnerLabel("Estado", petStatus)); form.addView(petStatus)
+            val message = messageView("Revisa los datos antes de guardar."); form.addView(message)
+            lateinit var save: Button
+            save = button("GUARDAR CAMBIOS") {
+                if (listOf(name, breed, age, color).any { it.text.isBlank() }) {
+                    message.text = "Completa nombre, raza, edad y color."
+                } else {
+                    save.isEnabled = false; message.text = "Guardando cambios…"
+                    repo.updatePet(id, Pet(
+                        name = name.text.toString(), species = species.selectedItem.toString(),
+                        breed = breed.text.toString(), sex = sex.selectedItem.toString(),
+                        age = age.text.toString(), color = color.text.toString(),
+                        territoryId = TERRITORIES[territory.selectedItemPosition].id,
+                        status = petStatus.selectedItem.toString()
+                    )) { updateError ->
+                        if (model.screen != "editPet:$id") return@updatePet
+                        save.isEnabled = true
+                        if (updateError == null) {
+                            toast("Mascota actualizada correctamente")
+                            editPetsScreen()
+                        } else message.text = "No se pudieron guardar los cambios: $updateError"
+                    }
+                }
+            }
+            form.addView(save); body.addView(form)
+        }
     }
     private fun accessibilityToggle(title: String, detail: String, key: String, checked: Boolean, update: (Boolean) -> Unit) = card().apply {
         addView(SwitchCompat(this@MainActivity).apply {
@@ -1337,10 +1559,10 @@ class MainActivity : AppCompatActivity() {
         })
         c.addView(button("INFORMACIÓN DE LA APLICACIÓN") { aboutScreen() })
         c.addView(secondaryButton("ACCESO PROFESIONAL") { workHome() })
-        c.addView(upcomingOption("Información de tu cuenta"))
-        c.addView(upcomingOption("Cambiar correo electrónico"))
-        c.addView(upcomingOption("Cambiar contraseña"))
-        c.addView(upcomingOption("Cambiar información de tus mascotas"))
+        c.addView(profileOption("Información de tu cuenta", "Correo, verificación y actividad de acceso") { accountInfoScreen() })
+        c.addView(profileOption("Cambiar correo electrónico", "Confirmación mediante enlace enviado al correo nuevo") { changeEmailScreen() })
+        c.addView(profileOption("Cambiar contraseña", "Requiere comprobar la contraseña actual") { changePasswordScreen() })
+        c.addView(profileOption("Cambiar información de tus mascotas", "Nombre, características, comuna y estado") { editPetsScreen() })
         c.addView(secondaryButton("CERRAR SESIÓN") {
             accessibilityOpen = false; model.logout()
         })

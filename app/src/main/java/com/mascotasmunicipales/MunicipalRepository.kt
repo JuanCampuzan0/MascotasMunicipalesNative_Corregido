@@ -1,6 +1,7 @@
 package com.mascotasmunicipales
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -32,7 +33,13 @@ class MunicipalRepository {
         val user = auth.currentUser ?: return done("Inicia sesión")
         val ref = db.collection("users").document(user.uid)
         ref.get().addOnSuccessListener { snap ->
-            if (snap.exists() && !snap.metadata.hasPendingWrites()) done(null)
+            if (snap.exists() && !snap.metadata.hasPendingWrites()) {
+                if (snap.getString("email") != user.email && !user.email.isNullOrBlank()) {
+                    ref.update(mapOf("email" to user.email.orEmpty(), "updatedAt" to FieldValue.serverTimestamp()))
+                        .addOnSuccessListener { done(null) }
+                        .addOnFailureListener { done(it.localizedMessage ?: "No se pudo actualizar el correo del perfil") }
+                } else done(null)
+            }
             else db.runTransaction { transaction ->
                 // Dos dispositivos pueden iniciar la misma cuenta simultáneamente.
                 if (!transaction.get(ref).exists()) transaction.set(ref, mapOf(
@@ -47,12 +54,61 @@ class MunicipalRepository {
 
     fun logout() = auth.signOut()
 
+    fun accountSummary(done: (AccountSummary?, String?) -> Unit) {
+        val user = auth.currentUser ?: return done(null, "Inicia sesión")
+        user.reload().addOnSuccessListener {
+            val current = auth.currentUser ?: return@addOnSuccessListener done(null, "La sesión terminó")
+            done(AccountSummary(
+                uid = current.uid,
+                email = current.email.orEmpty(),
+                emailVerified = current.isEmailVerified,
+                createdAtMillis = current.metadata?.creationTimestamp ?: 0L,
+                lastSignInAtMillis = current.metadata?.lastSignInTimestamp ?: 0L
+            ), null)
+        }.addOnFailureListener { done(null, it.localizedMessage ?: "No se pudo actualizar la cuenta") }
+    }
+
+    fun requestEmailChange(currentPassword: String, newEmail: String, done: (String?) -> Unit) {
+        val user = auth.currentUser ?: return done("Inicia sesión")
+        val currentEmail = user.email ?: return done("Esta cuenta no tiene correo")
+        val credential = EmailAuthProvider.getCredential(currentEmail, currentPassword)
+        user.reauthenticate(credential).addOnSuccessListener {
+            user.verifyBeforeUpdateEmail(newEmail.trim())
+                .addOnSuccessListener { done(null) }
+                .addOnFailureListener { done(it.localizedMessage ?: "No se pudo enviar la verificación") }
+        }.addOnFailureListener { done(it.localizedMessage ?: "La contraseña actual no es correcta") }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String, done: (String?) -> Unit) {
+        val user = auth.currentUser ?: return done("Inicia sesión")
+        val currentEmail = user.email ?: return done("Esta cuenta no tiene correo")
+        val credential = EmailAuthProvider.getCredential(currentEmail, currentPassword)
+        user.reauthenticate(credential).addOnSuccessListener {
+            user.updatePassword(newPassword)
+                .addOnSuccessListener { done(null) }
+                .addOnFailureListener { done(it.localizedMessage ?: "No se pudo cambiar la contraseña") }
+        }.addOnFailureListener { done(it.localizedMessage ?: "La contraseña actual no es correcta") }
+    }
+
     fun observePets(limit: Long = 30, done: (List<Pet>, Boolean, String?) -> Unit): ListenerRegistration {
         require(limit in 1L..30L) { "El límite de mascotas debe estar entre 1 y 30" }
         return db.collection("pets").orderBy("createdAt", Query.Direction.DESCENDING).limit(limit)
             .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) done(emptyList(), false, error.localizedMessage)
                 else if (snapshot != null) done(snapshot.documents.map(::pet), snapshot.metadata.isFromCache, null)
+            }
+    }
+
+    fun observeMyPets(done: (List<Pet>, Boolean, String?) -> Unit): ListenerRegistration {
+        val owner = uid ?: error("Inicia sesión")
+        return db.collection("pets").whereEqualTo("ownerId", owner).limit(30)
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                if (error != null) done(emptyList(), false, error.localizedMessage)
+                else if (snapshot != null) done(
+                    snapshot.documents.map(::pet).sortedByDescending { it.createdAt?.seconds ?: 0L },
+                    snapshot.metadata.isFromCache,
+                    null
+                )
             }
     }
 
@@ -106,6 +162,23 @@ class MunicipalRepository {
             "status" to "Con responsable", "photoKey" to "", "qrCode" to "ZPQ-${ref.id.take(8).uppercase()}",
             "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()
         )).addOnSuccessListener { done(null) }.addOnFailureListener { done(it.localizedMessage ?: "No se pudo guardar el registro") }
+    }
+
+    fun getPet(id: String, done: (Pet?, String?) -> Unit) {
+        db.collection("pets").document(id).get()
+            .addOnSuccessListener { done(if (it.exists()) pet(it) else null, null) }
+            .addOnFailureListener { done(null, it.localizedMessage ?: "No se pudo consultar la mascota") }
+    }
+
+    fun updatePet(id: String, p: Pet, done: (String?) -> Unit) {
+        if (uid == null) return done("Inicia sesión")
+        db.collection("pets").document(id).update(mapOf(
+            "name" to p.name.trim(), "species" to p.species, "breed" to p.breed.trim(),
+            "sex" to p.sex, "age" to p.age.trim(), "color" to p.color.trim(),
+            "territoryId" to p.territoryId, "status" to p.status,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )).addOnSuccessListener { done(null) }
+            .addOnFailureListener { done(it.localizedMessage ?: "No se pudo actualizar la mascota") }
     }
 
     fun createReport(id: String, r: Report, done: (String?) -> Unit) {

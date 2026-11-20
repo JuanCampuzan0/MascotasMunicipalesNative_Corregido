@@ -2,6 +2,14 @@ package com.mascotasmunicipales
 
 import com.google.firebase.Timestamp
 
+data class AccountSummary(
+    val uid: String,
+    val email: String,
+    val emailVerified: Boolean,
+    val createdAtMillis: Long,
+    val lastSignInAtMillis: Long
+)
+
 // Las fotos son recursos incluidos en la app; Firestore solo guarda esta clave.
 data class Pet(
     val id: String = "",

@@ -292,6 +292,13 @@ test("perfil propio válido; correo ajeno y campos extra rechazados", async () =
   await assertFails(setDoc(doc(db("carol"), "users/carol"), {...profile, password: "no-se-almacena"}));
   await assertSucceeds(setDoc(doc(db("carol"), "users/carol"), profile));
   await assertFails(updateDoc(doc(db("carol"), "users/carol"), {email: "other@example.invalid"}));
+  const changedEmailDb = env.authenticatedContext("carol", {email: "new-carol@example.invalid"}).firestore();
+  await assertSucceeds(updateDoc(doc(changedEmailDb, "users/carol"), {
+    email: "new-carol@example.invalid", updatedAt: serverTimestamp()
+  }));
+  await assertFails(updateDoc(doc(changedEmailDb, "users/carol"), {
+    role: "admin", updatedAt: serverTimestamp()
+  }));
 });
 
 test("ni dueño ni funcionario pueden transferir propiedad", async () => {

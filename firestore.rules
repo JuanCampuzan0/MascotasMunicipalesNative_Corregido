@@ -72,8 +72,13 @@ service cloud.firestore {
         && request.resource.data.role == 'citizen'
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
-      // Cambios de rol y contacto solo mediante Admin SDK / consola de confianza.
-      allow update, delete: if false;
+      // El correo se sincroniza solo después de que Authentication lo cambió y emitió el token nuevo.
+      // Rol, fechas de creación y cualquier otro campo permanecen protegidos.
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','updatedAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
 
     match /pets/{petId} {
